@@ -4,16 +4,23 @@ Web app per il prototipo in cartone del lettore di disegni musicale (Design by C
 
 La fotocamera del telefono (o di un computer che usa il telefono come webcam) guarda la base dall'alto, raddrizza l'immagine grazie a 4 marker ArUco e suona in tempo reale il foglio A3 e la matrice percussioni 4×16.
 
-- **App**: https://tobiaseu.github.io/lettore-disegni/
+- **App v1**: https://tobiaseu.github.io/lettore-disegni/
+- **App v2 · interfaccia del workshop**: https://tobiaseu.github.io/lettore-disegni/v2.html (misure in [layout-v2.js](layout-v2.js))
 - **Modello da stampare (A3, al 100%)**: [modello-A3.pdf](modello-A3.pdf) · sorgente [modello.html](modello.html)
 - **Cosa legge la camera**: [schema.html](https://tobiaseu.github.io/lettore-disegni/schema.html)
 - **Misure della base**: tutte in [layout.js](layout.js). Se cambi una misura, ristampa il modello.
 
-## Base v2
+## Versione 2 (workshop)
+Pagina separata [v2.html](v2.html). A sinistra la visione del computer (camera, zone lette, dati tecnici, registro eventi), a destra il prototipo in cartone interattivo, sotto le funzioni del prototipo e le funzioni secondarie.
+- Base 533 × 445: colonna comandi 70 × 325 (SPEED in alto, RESTART, START · STOP in basso), foglio A4, matrice 297 × 95, e un binario dei muti largo 36 mm a sinistra del foglio.
+- Muti: sportellini che coprono un bollino colorato (5 colori, in ordine di altezza) o nero (4 percussioni, accanto alla loro riga). Aperto = suona, chiuso = muto. La camera li legge.
+- Destrimano: comandi a destra. Mancino: comandi a sinistra. I marker restano negli stessi posti.
+
+## Base v1
 Colonna comandi 70 × 325 a sinistra, foglio A4 orizzontale 297 × 210 in alto a destra, matrice 297 × 95 sotto (20 mm di spazio), 4 marker ArUco agli angoli. Base 497 × 445.
 
 ## Regole
-Altezza = nota (di base 3 ottave Do3–Do6, scala pentatonica; si cambia dal computer). Colore = strumento: nero basso, blu piano, rosso chitarra, giallo violino, verde flauto. Matrice: charleston, battimani, rullante, cassa.
+Altezza = nota (di base 3 ottave Do3–Do6, scala pentatonica; si cambia dal computer). Colore = strumento: nero basso, blu piano, rosso chitarra, giallo violino, verde flauto. Matrice, righe dall'alto: cassa (cerchio), battimani (triangolo), charleston (rombo), rullante (rettangolo).
 
 ## Prova veloce: foglio + striscia simboli (senza base né marker)
 Il programma trova da solo il foglio A4 bianco e, se c'è, una striscia di carta con la griglia 4 × 16 disegnata a mano.

@@ -33,11 +33,12 @@ var LAYOUT = {
      La griglia 4 x 16 ha le stesse colonne del foglio, cosi la barra del tempo e la stessa. */
   matrixCard: { x: 140, y: 290, w: 297, h: 95 },
   matrix: { x: 146, y: 296, w: 285, h: 83, rows: 4, cols: 16 },
+  /* Righe dall'alto, nello stesso ordine della striscia disegnata: cerchio, triangolo, rombo, rettangolo */
   drums: [
-    { key: 'hat',   name: 'Charleston', short: 'CH' },
-    { key: 'clap',  name: 'Battimani',  short: 'BM' },
-    { key: 'snare', name: 'Rullante',   short: 'RU' },
-    { key: 'kick',  name: 'Cassa',      short: 'CA' }
+    { key: 'kick',  name: 'Cassa',      short: 'CA', shape: 'circle' },
+    { key: 'clap',  name: 'Battimani',  short: 'BM', shape: 'tri' },
+    { key: 'hat',   name: 'Charleston', short: 'CH', shape: 'diamond' },
+    { key: 'snare', name: 'Rullante',   short: 'RU', shape: 'rect' }
   ],
 
   instruments: [

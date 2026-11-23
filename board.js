@@ -75,8 +75,17 @@ var BOARD = (function () {
       s += '<line x1="' + f(M.x + j * cw) + '" x2="' + f(M.x + j * cw) + '" y1="' + M.y + '" y2="' + (M.y + M.h) + '" stroke="' + (j % 4 ? '#c4c4c4' : '#111') + '" stroke-width="' + (j % 4 ? .3 : .5) + '"/>';
     for (var i = 1; i < M.rows; i++)
       s += '<line x1="' + M.x + '" x2="' + (M.x + M.w) + '" y1="' + f(M.y + i * rh) + '" y2="' + f(M.y + i * rh) + '" stroke="#c4c4c4" stroke-width=".3"/>';
-    L.drums.forEach(function (d, i) { s += text(C.x + 3, M.rowY(i) + 1, d.short, 2.2, { c: '#888', w: 500, a: 'middle', rot: -90 }); });
+    L.drums.forEach(function (d, i) { s += shape(d.shape, C.x + 3, M.rowY(i), 1.8, '#888'); });
     return s;
+  }
+
+  /* icona della forma di una percussione: circle, tri, diamond, rect */
+  function shape(kind, cx, cy, r, fill, stroke, sw) {
+    var a = ' fill="' + (fill || '#111') + '"' + (stroke ? ' stroke="' + stroke + '" stroke-width="' + (sw || .5) + '" stroke-linejoin="round"' : '');
+    if (kind == 'circle') return '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(r * .9) + '"' + a + '/>';
+    if (kind == 'tri') return '<path d="M' + f(cx - r * .8) + ' ' + f(cy - r) + 'L' + f(cx + r) + ' ' + f(cy) + 'L' + f(cx - r * .8) + ' ' + f(cy + r) + 'Z"' + a + '/>';
+    if (kind == 'diamond') return '<path d="M' + f(cx) + ' ' + f(cy - r) + 'L' + f(cx + r) + ' ' + f(cy) + 'L' + f(cx) + ' ' + f(cy + r) + 'L' + f(cx - r) + ' ' + f(cy) + 'Z"' + a + '/>';
+    return '<rect x="' + f(cx - r * .85) + '" y="' + f(cy - r * .62) + '" width="' + f(r * 1.7) + '" height="' + f(r * 1.24) + '"' + a + '/>';
   }
 
   function disc(cx, cy, r, dotR, dotDist, angle, label) {
@@ -119,13 +128,14 @@ var BOARD = (function () {
     [[9, 81], [11, 79], [13, 81], [15, 83]].forEach(function (p) { s += dot(demoX(p[0]) + sw / 2, demoY(p[1]), C.flute, 3); });
     return s;
   }
+  /* righe: cassa, battimani, charleston, rullante */
   var DEMO_BEAT = [
-    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1],
+    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
-    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0]
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1],
+    [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0]
   ];
-  var TOKEN = ['#E8B90C', '#16975A', '#1D4ED8', '#E0322A'];
+  var TOKEN = ['#E0322A', '#16975A', '#E8B90C', '#1D4ED8'];
   function demoTokens() {
     var s = '', r = Math.min(L.matrix.w / L.matrix.cols, L.matrix.h / L.matrix.rows) * .38;
     DEMO_BEAT.forEach(function (row, i) { row.forEach(function (on, j) { if (on) s += dot(L.matrix.colX(j), L.matrix.rowY(i), TOKEN[i], f(r)); }); });
@@ -153,5 +163,5 @@ var BOARD = (function () {
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + x + ' ' + y + ' ' + w + ' ' + h + '" ' + (extra || '') + '>' + content + '</svg>';
   }
 
-  return { marker: marker, panel: panel, matrix: matrix, disc: disc, sheetSlot: sheetSlot, full: full, svg: svg, text: text, polar: polar, demoBeat: DEMO_BEAT };
+  return { shape: shape, marker: marker, panel: panel, matrix: matrix, disc: disc, sheetSlot: sheetSlot, full: full, svg: svg, text: text, polar: polar, demoBeat: DEMO_BEAT };
 })();

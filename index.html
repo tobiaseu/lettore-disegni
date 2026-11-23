@@ -43,6 +43,8 @@ input[type=range]{accent-color:var(--accent);flex:1;min-width:120px}
 .scales button.on{outline:3px solid var(--ink);outline-offset:-1px;font-weight:700}
 .sw{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .mute.off{opacity:.35;text-decoration:line-through}
+.ico{width:14px;height:14px;margin-right:6px;vertical-align:-2px}
+.vlink{font-size:13px;font-weight:700;text-decoration:none;color:var(--bg);background:var(--ink);padding:6px 12px;border-radius:99px}
 label.row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
 label.row:last-child{border:0}
 .muted{color:var(--muted);font-size:13px}
@@ -76,12 +78,14 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
       <label class="btn" style="display:inline-flex;align-items:center">Usa una foto<input type="file" accept="image/*" id="goPhoto" hidden></label>
     </div>
     <div id="camHelp" hidden></div>
+    <p style="margin:16px 0 0"><a href="v2.html"><b>Versione 2</b>: interfaccia del workshop in cartone</a></p>
     <p class="muted" style="margin-top:18px">Serve il volume alto e il permesso per la fotocamera. Su computer puoi scegliere la camera del telefono nel pannello Maestra.</p>
   </div>
 </div>
 
 <header>
-  <h1>Lettore di disegni</h1>
+  <h1>Lettore di disegni <span class="muted" style="font-weight:500">v1</span></h1>
+  <a class="vlink" href="v2.html">Prova la versione 2 →</a>
   <span class="chip" id="chipMk"><i></i><span>marker 0/4</span></span>
   <span class="chip" id="chipFps"><i></i><span>lettura —</span></span>
   <button class="btn" id="openTeacher">Maestra</button>
@@ -330,10 +334,18 @@ function grab() {
 /* ---------------- marker ---------------- */
 var detector = new AR.Detector({ dictionaryName: 'ARUCO_MIP_36h12' });
 function detect() {
-  var sc = Math.min(1, 720 / frame.width);
-  small.width = Math.round(frame.width * sc); small.height = Math.round(frame.height * sc);
-  sctx.drawImage(frame, 0, 0, small.width, small.height);
-  var ms = detector.detect(sctx.getImageData(0, 0, small.width, small.height));
+  /* provo a 720 px; se mancano marker riprovo più grande (marker piccoli o lontani) e unisco */
+  var ms = [], sc = 1, got = {};
+  [720, 1100].forEach(function (target) {
+    if (ms.length >= 4) return;
+    var s2 = Math.min(1, target / frame.width);
+    small.width = Math.round(frame.width * s2); small.height = Math.round(frame.height * s2);
+    sctx.drawImage(frame, 0, 0, small.width, small.height);
+    detector.detect(sctx.getImageData(0, 0, small.width, small.height)).forEach(function (m) {
+      if (got[m.id] || m.id > 3) return; got[m.id] = 1;
+      m.corners = m.corners.map(function (p) { return { x: p.x / s2, y: p.y / s2 }; }); ms.push(m);
+    });
+  });
   var src = [], dst = [], seen = {};
   lastMarkers = [];
   ms.forEach(function (m) {
@@ -1026,8 +1038,8 @@ function drawStrip() {
   quad(Math.max(0, g.us[0] - g.p), g.us[0], g.vs[0], g.vs[4], null, 'rgba(122,60,255,.18)');
   for (var k = 0; k < 16; k++) for (var j = 0; j < 4; j++) quad(g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1], 'rgba(122,60,255,.55)', null, lw * .5);
   vctx.font = '700 ' + Math.round(view.width / 60) + 'px Helvetica,Arial'; vctx.textAlign = 'center';
-  (stripCells || []).forEach(function (e) { var c = stripPt((g.us[e[0]] + g.us[e[0] + 1]) / 2, (g.vs[e[1]] + g.vs[e[1] + 1]) / 2); vctx.fillStyle = 'rgba(122,60,255,.85)'; vctx.beginPath(); vctx.arc(c[0], c[1], view.width / 70, 0, 7); vctx.fill(); vctx.fillStyle = '#fff'; vctx.fillText(SHAPE_LETTER[e[2]], c[0], c[1] + view.width / 190); });
-  (strip.rowShape || strip.header).forEach(function (h, j) { var c = stripPt(Math.max(0, g.us[0] - g.p / 2), (g.vs[j] + g.vs[j + 1]) / 2); vctx.fillStyle = '#7a3cff'; vctx.fillText(h ? SHAPE_LETTER[h] : '?', c[0], c[1] + view.width / 190); });
+  (stripCells || []).forEach(function (e) { var c = stripPt((g.us[e[0]] + g.us[e[0] + 1]) / 2, (g.vs[e[1]] + g.vs[e[1] + 1]) / 2); vctx.fillStyle = 'rgba(122,60,255,.85)'; vctx.beginPath(); vctx.arc(c[0], c[1], view.width / 70, 0, 7); vctx.fill(); drawShape(vctx, e[2], c[0], c[1], view.width / 140, '#fff'); });
+  (strip.rowShape || strip.header).forEach(function (h, j) { var c = stripPt(Math.max(0, g.us[0] - g.p / 2), (g.vs[j] + g.vs[j + 1]) / 2); if (h) drawShape(vctx, h, c[0], c[1], view.width / 110, '#7a3cff'); else { vctx.fillStyle = '#7a3cff'; vctx.fillText('?', c[0], c[1] + view.width / 190); } });
   if (ph != null) { var kk = Math.min(15, Math.floor(ph / 4)), u = g.us[kk] + (ph / 4 - kk) * (g.us[kk + 1] - g.us[kk]); quad(u - 3, u + 3, 0, SV, null, 'rgba(255,220,60,.6)'); }
   vctx.textAlign = 'left';
 }
@@ -1096,11 +1108,11 @@ function drawRoll() {
   var W = roll.clientWidth || 600; var hgt = Math.round(W * .56), dpr = Math.min(2, window.devicePixelRatio || 1);
   if (roll.width != Math.round(W * dpr)) { roll.width = Math.round(W * dpr); roll.height = Math.round(hgt * dpr); }
   var c = rctx; c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  var w = roll.width / dpr, h = roll.height / dpr, pad = 10, top = pad, sheetH = h * .68, gap = 10, matH = h - sheetH - gap - pad * 2, cw = (w - pad * 2) / COLS;
+  var w = roll.width / dpr, h = roll.height / dpr, pad = 10, padL = 30, top = pad, sheetH = h * .68, gap = 10, matH = h - sheetH - gap - pad * 2, cw = (w - padL - pad) / COLS;
   c.fillStyle = '#fff'; c.fillRect(0, 0, w, h);
-  c.fillStyle = '#fafaf7'; c.fillRect(pad, top, w - pad * 2, sheetH);
+  c.fillStyle = '#fafaf7'; c.fillRect(padL, top, w - padL - pad, sheetH);
   c.strokeStyle = '#e3e1da'; c.lineWidth = 1;
-  for (var s = 0; s <= 16; s++) { var xs = pad + s * 4 * cw; c.beginPath(); c.moveTo(xs, top); c.lineTo(xs, top + sheetH); c.strokeStyle = s % 4 ? '#eeece6' : '#d6d3ca'; c.stroke(); }
+  for (var s = 0; s <= 16; s++) { var xs = padL + s * 4 * cw; c.beginPath(); c.moveTo(xs, top); c.lineTo(xs, top + sheetH); c.strokeStyle = s % 4 ? '#eeece6' : '#d6d3ca'; c.stroke(); }
   /* note: segmenti per note tenute, linee per i glissandi */
   var lo = S.sheet == '8' ? 36 : S.sheet == 'o4' ? 34 : S.sheet == 'o2' ? 58 : 46, hi = 86;
   function yOf(m) { return Math.max(top + 3, Math.min(top + sheetH - 1, top + sheetH - (m - lo) / (hi - lo) * sheetH)); }
@@ -1109,21 +1121,40 @@ function drawRoll() {
     committed[col].forEach(function (n, k) {
       if (G.used[col + ':' + k]) return;
       c.fillStyle = L.instruments[n.i].color; c.globalAlpha = S.muteC[n.i] ? .18 : 1;
-      c.fillRect(pad + col * cw, yOf(midiOf(n)) - 3, cw + .6, 6);
+      c.fillRect(padL + col * cw, yOf(midiOf(n)) - 3, cw + .6, 6);
     });
   }
   G.list.forEach(function (gl) {
     c.strokeStyle = L.instruments[gl.i].color; c.globalAlpha = S.muteC[gl.i] ? .18 : 1; c.lineWidth = 5; c.lineCap = 'round'; c.lineJoin = 'round';
-    c.beginPath(); gl.m.forEach(function (m, q) { var x = pad + (gl.c + q + .5) * cw, y = yOf(m + S.transpose); if (q) c.lineTo(x, y); else c.moveTo(x, y); }); c.stroke();
+    c.beginPath(); gl.m.forEach(function (m, q) { var x = padL + (gl.c + q + .5) * cw, y = yOf(m + S.transpose); if (q) c.lineTo(x, y); else c.moveTo(x, y); }); c.stroke();
   });
   c.globalAlpha = 1;
-  var my = top + sheetH + gap, rh = matH / ND, mw = (w - pad * 2) / 16;
-  for (var i = 0; i < ND; i++) for (var j = 0; j < 16; j++) {
-    c.fillStyle = grid[i][j] ? (S.muteD[i] ? '#bbb' : '#161616') : (j % 4 ? '#f1f0ec' : '#e6e4dd');
-    c.beginPath(); c.roundRect ? c.roundRect(pad + j * mw + 2, my + i * rh + 2, mw - 4, rh - 4, 4) : c.rect(pad + j * mw + 2, my + i * rh + 2, mw - 4, rh - 4); c.fill();
-  }
+  var my = top + sheetH + gap, rh = matH / ND, mw = (w - padL - pad) / 16, order = drumOrder();
+  order.forEach(function (i, row) {
+    drawShape(c, L.drums[i].shape, padL / 2, my + (row + .5) * rh, Math.min(8, rh * .32), S.muteD[i] ? '#bbb' : '#161616');
+    for (var j = 0; j < 16; j++) {
+      c.fillStyle = grid[i][j] ? (S.muteD[i] ? '#bbb' : '#161616') : (j % 4 ? '#f1f0ec' : '#e6e4dd');
+      c.beginPath(); c.roundRect ? c.roundRect(padL + j * mw + 2, my + row * rh + 2, mw - 4, rh - 4, 4) : c.rect(padL + j * mw + 2, my + row * rh + 2, mw - 4, rh - 4); c.fill();
+    }
+  });
   var ph = playheadPos();
-  if (ph != null) { var x = pad + ph * cw; c.fillStyle = 'rgba(255,200,40,.35)'; c.fillRect(x - 6, top - 4, 12, h - top); c.fillStyle = '#ff5a1f'; c.fillRect(x - 1.5, top - 4, 3, h - top); }
+  if (ph != null) { var x = padL + ph * cw; c.fillStyle = 'rgba(255,200,40,.35)'; c.fillRect(x - 6, top - 4, 12, h - top); c.fillStyle = '#ff5a1f'; c.fillRect(x - 1.5, top - 4, 3, h - top); }
+}
+/* icona della forma di una percussione su canvas */
+function drawShape(c, kind, cx, cy, r, fill) {
+  c.fillStyle = fill; c.beginPath();
+  if (kind == 'circle') c.arc(cx, cy, r * .9, 0, 7);
+  else if (kind == 'tri') { c.moveTo(cx - r * .8, cy - r); c.lineTo(cx + r, cy); c.lineTo(cx - r * .8, cy + r); c.closePath(); }
+  else if (kind == 'diamond') { c.moveTo(cx, cy - r); c.lineTo(cx + r, cy); c.lineTo(cx, cy + r); c.lineTo(cx - r, cy); c.closePath(); }
+  else c.rect(cx - r * .85, cy - r * .62, r * 1.7, r * 1.24);
+  c.fill();
+}
+/* ordine delle righe percussioni come sono disegnate sulla striscia (se c'è), altrimenti quello di layout.js */
+function drumOrder() {
+  var out = [];
+  if (S.mode == 'sheet' && strip && strip.rowShape) strip.rowShape.forEach(function (sh) { var d = drumIndex(SHAPE_DRUM[sh]); if (d >= 0 && out.indexOf(d) < 0) out.push(d); });
+  for (var i = 0; i < ND; i++) if (out.indexOf(i) < 0) out.push(i);
+  return out;
 }
 function frameLoop() { drawView(); drawRoll(); requestAnimationFrame(frameLoop); }
 
@@ -1141,7 +1172,7 @@ function renderUI() {
 function buildUI() {
   L.scales.forEach(function (sc, i) { var b = document.createElement('button'); b.className = 'btn'; b.innerHTML = '<span class="sw" style="background:' + sc.color + '"></span>' + sc.name; b.onclick = function () { S.scale = i; renderUI(); }; $('scales').appendChild(b); });
   L.instruments.forEach(function (ins, i) { var b = document.createElement('button'); b.className = 'btn mute'; b.innerHTML = '<span class="sw" style="background:' + ins.color + '"></span>' + ins.name; b.onclick = function () { initAudio(); S.muteC[i] = !S.muteC[i]; applyMutes(); }; $('mutesC').appendChild(b); });
-  L.drums.forEach(function (d, i) { var b = document.createElement('button'); b.className = 'btn mute'; b.textContent = d.name; b.onclick = function () { initAudio(); S.muteD[i] = !S.muteD[i]; applyMutes(); }; $('mutesD').appendChild(b); });
+  L.drums.forEach(function (d, i) { var b = document.createElement('button'); b.className = 'btn mute'; b.innerHTML = '<svg class="ico" viewBox="-5 -5 10 10" aria-hidden="true">' + BOARD.shape(d.shape, 0, 0, 4.2, 'currentColor') + '</svg>' + d.name; b.onclick = function () { initAudio(); S.muteD[i] = !S.muteD[i]; applyMutes(); }; $('mutesD').appendChild(b); });
   function applyMode() { $('selMode').value = S.mode; $('sheetTools').hidden = S.mode != 'sheet'; H = null; findSheet(); manualPts = null; lastDetect = 0; }
   $('selMode').onchange = function () { S.mode = this.value; saveTeacher(); applyMode(); };
   $('bFind').onclick = function () { manualPts = null; findSheet(); };
