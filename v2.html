@@ -149,19 +149,60 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:90vw}
 #toast.show{opacity:1}
 footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
+
+/* ======== v2.1: schermata unica da computer ======== */
+@media (min-width:1000px){
+  html,body{height:100%;overflow:hidden}
+  body{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;height:100vh}
+  header{padding:8px 16px}
+  .stagearea{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:10px;padding:0 10px;min-height:0;align-items:stretch}
+  .stagearea>.panel{display:flex;flex-direction:column;min-height:0;padding:10px 12px}
+  .stage{flex:1;min-height:0;position:relative}
+  #view{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;object-fit:contain}
+  #twinWrap{flex:1;min-height:0;position:relative}
+  #twin{position:absolute;left:6px;top:6px;width:calc(100% - 12px);height:calc(100% - 12px)}
+  .dock{height:var(--dockH,31vh);overflow:auto;padding:10px 16px 12px;border-top:1px solid var(--line);background:var(--surface)}
+  .dock.fold{display:none}
+}
+@media (max-width:999px){ .stagearea{display:grid;gap:12px;padding:0 16px} .dock{padding:10px 16px 20px} }
+.ptitle{margin-bottom:8px}
+.twin .ptitle .seg button{padding:5px 12px;font-size:12.5px}
+.twinfoot{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;margin-top:6px}
+.twinfoot .meta{font:11.5px var(--mono);color:var(--muted)} .twinfoot .hint{font-size:12px}
+.dockbar{display:flex;align-items:center;gap:2px;padding:6px 12px;margin-top:10px;background:var(--card);border-top:1px solid var(--line)}
+.dockbar [role=tab]{border:0;background:transparent;font:600 13px var(--f);color:var(--muted);padding:7px 14px;border-radius:8px;cursor:pointer}
+.dockbar [role=tab]:hover{background:#efeee9;color:var(--ink)}
+.dockbar [role=tab][aria-selected=true]{background:var(--ink);color:#fff}
+.dockbar [role=tab]:focus-visible,.dockfold:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dockmini{margin-left:auto;font:12px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dockfold{border:1px solid var(--line);background:var(--card);border-radius:8px;width:32px;height:30px;cursor:pointer;margin-left:8px}
+.pane.term{background:var(--term);border-radius:12px;padding:10px;margin:-2px -4px}
+.pane .tele{grid-template-columns:repeat(6,minmax(0,1fr));margin-top:0}
+.pane .tele .cell.w3{grid-column:span 2;grid-row:span 2}
+.pane .tele .cell.w3 #log{max-height:none}
+@media (max-width:1300px){.pane .tele{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.pane .sec{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media (max-width:1300px){.pane .sec{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.pane .sec,.pane .tele{grid-template-columns:minmax(0,1fr)}}
+.info{display:grid;grid-template-columns:1fr 1fr 1.4fr .8fr;gap:12px}
+@media (max-width:1200px){.info{grid-template-columns:1fr 1fr}}
+.info p,.info li{font-size:13.5px;margin:0 0 6px} .info ul,.info ol{margin:0;padding-left:18px} .info ol li{margin-bottom:6px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px} .legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.notes{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:12px;height:100%}
+#notes{width:100%;min-height:180px;height:100%;resize:none;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:14px/1.55 var(--mono);background:var(--card)}
+.notesside{display:flex;flex-direction:column;gap:8px}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand"><h1>Lettore di disegni</h1><small>prototipo per il workshop · base in cartone</small></div>
+  <div class="brand"><h1>Lettore di disegni</h1><small>v2 · prototipo per il workshop</small></div>
   <nav class="seg" aria-label="Versione"><a href="index.html">v1</a><a class="on" href="v2.html" aria-current="page">v2 workshop</a></nav>
   <span class="chip" id="chipMk"><i></i><span>aggancio —</span></span>
   <span class="chip" id="chipFps"><i></i><span>lettura —</span></span>
   <span class="chip" id="chipAudio"><i></i><span>audio spento</span></span>
 </header>
-
-<main>
-  <!-- ============ VISIONE COMPUTER ============ -->
+<main class="stagearea">
   <section class="panel term" aria-labelledby="hTerm">
     <div class="ptitle"><h2 id="hTerm">Visione computer</h2><span class="sub" id="srcInfo">nessuna sorgente</span></div>
     <div class="tbar">
@@ -195,48 +236,30 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
         </div>
       </div>
     </div>
-    <div class="tele" id="tele">
-      <div class="cell"><div class="k">sorgente</div><div class="v" id="tSrc">—</div></div>
-      <div class="cell"><div class="k">lettura</div><div class="v" id="tRead">—</div></div>
-      <div class="cell"><div class="k">aggancio</div><div class="v" id="tLock">—</div></div>
-      <div class="cell"><div class="k">riproduzione</div><div class="v" id="tPlay">—</div></div>
-      <div class="cell"><div class="k">bianco carta</div><div class="v" id="tWb">—</div></div>
-      <div class="cell"><div class="k">comandi letti</div><div class="v" id="tCtl">—</div></div>
-      <div class="cell w2"><div class="k"><span>note lette sul foglio</span><span id="tNotesN"></span></div><div class="v bars" id="tNotes"></div></div>
-      <div class="cell"><div class="k">muti letti dal cartone</div><div class="v" id="tMutes">—</div></div>
-      <div class="cell w2"><div class="k"><span>matrice percussioni</span><span id="tMatN"></span></div><div class="v"><div class="mini" id="tMat"></div></div></div>
-      <div class="cell"><div class="k">audio</div><div class="v" id="tAudio">—</div></div>
-      <div class="cell w3"><div class="k"><span>registro eventi</span><span>ultimi 40</span></div><div id="log" aria-live="polite"></div></div>
-    </div>
   </section>
-
-  <!-- ============ GEMELLO IN CARTONE ============ -->
   <section class="panel twin" aria-labelledby="hTwin">
-    <div class="ptitle"><h2 id="hTwin">Prototipo in cartone</h2><span class="meta" id="twinMeta"></span></div>
-    <div id="twinWrap"><svg id="twin" role="group" aria-label="Base in cartone interattiva"></svg></div>
-    <div class="handrow">
-      <div class="seg" role="radiogroup" aria-label="Mano">
-        <button role="radio" id="hRight" aria-checked="true">Destrimano · comandi a destra</button>
-        <button role="radio" id="hLeft" aria-checked="false">Mancino · comandi a sinistra</button>
+    <div class="ptitle"><h2 id="hTwin">Prototipo in cartone</h2>
+      <div class="seg sp" role="radiogroup" aria-label="Mano">
+        <button role="radio" id="hRight" aria-checked="true">Destrimano</button>
+        <button role="radio" id="hLeft" aria-checked="false">Mancino</button>
       </div>
-      <span class="hint">Tocca i cerchi, trascina la manopola, apri e chiudi gli sportellini.</span>
     </div>
-    <details class="why">
-      <summary>Perché i comandi stanno qui (euristiche di Nielsen)</summary>
-      <ol>
-        <li><b>Corrispondenza col mondo reale (2).</b> I 5 muti colore sono in colonna a sinistra del foglio, ordinati come l'altezza: flauto in alto, basso in basso. La posizione dice già cosa fa.</li>
-        <li><b>Coerenza (4).</b> Colori e percussioni si spengono nello stesso modo e nello stesso binario, accanto a quello che comandano: il colore accanto al foglio, la forma accanto alla sua riga.</li>
-        <li><b>Riconoscere invece di ricordare (6).</b> Il binario è anche la legenda: il bambino vede che il verde è il flauto senza doverlo ricordare.</li>
-        <li><b>Stato visibile (1).</b> Lo sportellino resta aperto o chiuso: si vede da lontano chi suona e chi no, anche a musica ferma, e lo vede anche la camera.</li>
-        <li><b>Prevenzione degli errori (5).</b> I muti sono lontani dai 3 pulsanti grandi, così premendo START non si spegne un colore per sbaglio. La colonna comandi sta dal lato della mano forte: il braccio non passa sopra il foglio e non copre la camera.</li>
-        <li><b>Minimalismo (8).</b> Sul cartone solo 3 comandi grandi e i muti. Tutto il resto (scale, trasporta, REC, volume) resta sul computer, per l'insegnante.</li>
-      </ol>
-    </details>
+    <div id="twinWrap"><svg id="twin" role="group" aria-label="Base in cartone interattiva"></svg></div>
+    <div class="twinfoot"><span class="meta" id="twinMeta"></span><span class="hint">Tocca i cerchi, trascina la manopola, apri e chiudi gli sportellini.</span></div>
   </section>
+</main>
 
-  <!-- ============ FUNZIONI DEL PROTOTIPO ============ -->
-  <section class="full">
-    <div class="sectionhead"><h2>Funzioni del prototipo</h2><p>Le stesse che ci sono sul cartone: si usano da lì o da qui, ed è sempre lo stesso stato.</p></div>
+<nav class="dockbar" role="tablist" aria-label="Pannelli">
+  <button role="tab" id="tab-cmd" aria-controls="pane-cmd" aria-selected="true">Comandi</button>
+  <button role="tab" id="tab-set" aria-controls="pane-set" aria-selected="false">Impostazioni</button>
+  <button role="tab" id="tab-dat" aria-controls="pane-dat" aria-selected="false">Dati</button>
+  <button role="tab" id="tab-inf" aria-controls="pane-inf" aria-selected="false">Info progetto</button>
+  <button role="tab" id="tab-not" aria-controls="pane-not" aria-selected="false">Appunti</button>
+  <span class="dockmini" id="dockMini"></span>
+  <button class="dockfold" id="dockFold" aria-expanded="true" title="Riduci o apri il pannello">▾</button>
+</nav>
+<section class="dock" id="dock">
+  <div class="pane" id="pane-cmd" role="tabpanel" aria-labelledby="tab-cmd">
     <div class="proto">
       <div class="card">
         <h3>Tempo <span class="badge c">sul cartone</span></h3>
@@ -260,11 +283,8 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
         <div class="group" id="mutesD"></div>
       </div>
     </div>
-  </section>
-
-  <!-- ============ FUNZIONI SECONDARIE ============ -->
-  <section class="full">
-    <div class="sectionhead"><h2>Funzioni secondarie</h2><p>Solo dal computer, per chi guida il laboratorio.</p></div>
+  </div>
+  <div class="pane" id="pane-set" role="tabpanel" aria-labelledby="tab-set" hidden>
     <div class="sec">
       <div class="card">
         <h3>Suono</h3>
@@ -309,9 +329,60 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
         <p class="muted" style="margin:0;line-height:1.9"><kbd>Spazio</kbd> start/stop · <kbd>R</kbd> restart · <kbd>↑</kbd><kbd>↓</kbd> speed · <kbd>1</kbd>–<kbd>5</kbd> muto colori · <kbd>6</kbd>–<kbd>9</kbd> muto percussioni · <kbd>W</kbd> giro · <kbd>A</kbd> rec · <kbd>←</kbd><kbd>→</kbd> trasporta · <kbd>S</kbd> scala · <kbd>H</kbd> destrimano/mancino</p>
       </div>
     </div>
-  </section>
-</main>
-<footer>Open design · codice, misure e modelli liberi nel repository <a href="https://github.com/tobiaseu/lettore-disegni">tobiaseu/lettore-disegni</a>. Marker: js-aruco2 (MIT).</footer>
+  </div>
+  <div class="pane term" id="pane-dat" role="tabpanel" aria-labelledby="tab-dat" hidden>
+    <div class="tele" id="tele">
+      <div class="cell"><div class="k">sorgente</div><div class="v" id="tSrc">—</div></div>
+      <div class="cell"><div class="k">lettura</div><div class="v" id="tRead">—</div></div>
+      <div class="cell"><div class="k">aggancio</div><div class="v" id="tLock">—</div></div>
+      <div class="cell"><div class="k">riproduzione</div><div class="v" id="tPlay">—</div></div>
+      <div class="cell"><div class="k">bianco carta</div><div class="v" id="tWb">—</div></div>
+      <div class="cell"><div class="k">comandi letti</div><div class="v" id="tCtl">—</div></div>
+      <div class="cell w2"><div class="k"><span>note lette sul foglio</span><span id="tNotesN"></span></div><div class="v bars" id="tNotes"></div></div>
+      <div class="cell"><div class="k">muti letti dal cartone</div><div class="v" id="tMutes">—</div></div>
+      <div class="cell w2"><div class="k"><span>matrice percussioni</span><span id="tMatN"></span></div><div class="v"><div class="mini" id="tMat"></div></div></div>
+      <div class="cell"><div class="k">audio</div><div class="v" id="tAudio">—</div></div>
+      <div class="cell w3"><div class="k"><span>registro eventi</span><span>ultimi 40</span></div><div id="log" aria-live="polite"></div></div>
+    </div>
+  </div>
+  <div class="pane" id="pane-inf" role="tabpanel" aria-labelledby="tab-inf" hidden>
+    <div class="info">
+      <div class="card"><h3>Misure della base v2</h3>
+        <p>Base <b>533 × 445 mm</b>, 4 marker ArUco (lato 40 mm) a 30 mm dagli angoli.</p>
+        <ul><li>Colonna comandi <b>70 × 325</b>: SPEED in alto, RESTART, START · STOP in basso (cerchi Ø 54).</li>
+        <li>Binario muti <b>36 × 325</b> a sinistra del foglio, dove comincia il tempo.</li>
+        <li>Foglio <b>A4 297 × 210</b>, letto 285 × 198 (6 mm di margine).</li>
+        <li>Matrice <b>297 × 95</b>, 20 mm sotto il foglio, griglia 4 × 16.</li>
+        <li>Destrimano: comandi a destra. Mancino: a sinistra. I marker non si spostano.</li></ul></div>
+      <div class="card"><h3>Regole del suono</h3>
+        <div class="legend" id="legendC"></div>
+        <div class="legend" id="legendD" style="margin-top:8px"></div>
+        <p class="muted" style="margin-top:8px">Altezza = nota (3 ottave, scala scelta dal computer). Linea storta continua = glissando. 16 passi, la barra del tempo passa su foglio e matrice insieme.</p></div>
+      <div class="card"><h3>Perché i comandi stanno qui · Nielsen</h3><ol>
+        <li><b>Corrispondenza col mondo reale (2).</b> I 5 muti colore sono in colonna a sinistra del foglio, ordinati come l'altezza: flauto in alto, basso in basso. La posizione dice già cosa fa.</li>
+        <li><b>Coerenza (4).</b> Colori e percussioni si spengono nello stesso modo e nello stesso binario, accanto a quello che comandano: il colore accanto al foglio, la forma accanto alla sua riga.</li>
+        <li><b>Riconoscere invece di ricordare (6).</b> Il binario è anche la legenda: il bambino vede che il verde è il flauto senza doverlo ricordare.</li>
+        <li><b>Stato visibile (1).</b> Lo sportellino resta aperto o chiuso: si vede da lontano chi suona e chi no, anche a musica ferma, e lo vede anche la camera.</li>
+        <li><b>Prevenzione degli errori (5).</b> I muti sono lontani dai 3 pulsanti grandi, così premendo START non si spegne un colore per sbaglio. La colonna comandi sta dal lato della mano forte: il braccio non passa sopra il foglio e non copre la camera.</li>
+        <li><b>Minimalismo (8).</b> Sul cartone solo 3 comandi grandi e i muti. Tutto il resto (scale, trasporta, REC, volume) resta sul computer, per l'insegnante.</li>
+      </ol></div>
+      <div class="card"><h3>Link</h3>
+        <ul class="links"><li><a href="index.html">Versione 1</a></li><li><a href="schema.html">Cosa legge la camera (v1)</a></li><li><a href="modello-A3.pdf">Modello da stampare (v1, A3)</a></li><li><a href="https://github.com/tobiaseu/lettore-disegni">Codice open source</a></li></ul>
+        <p class="muted">Gli aggiornamenti nuovi vanno nella v2. La v1 resta come riferimento.</p></div>
+    </div>
+  </div>
+  <div class="pane" id="pane-not" role="tabpanel" aria-labelledby="tab-not" hidden>
+    <div class="notes">
+      <textarea id="notes" spellcheck="true" aria-label="Appunti del progetto"></textarea>
+      <div class="notesside">
+        <p class="muted" id="notesState">Gli appunti restano salvati in questo browser.</p>
+        <button class="btn" id="notesStamp">+ Prova di oggi</button>
+        <button class="btn" id="notesDl">Scarica .md</button>
+        <button class="btn" id="notesCopy">Copia</button>
+      </div>
+    </div>
+  </div>
+</section>
 <div id="toast" role="status"></div>
 
 <script src="vendor/cv.js"></script>
@@ -1248,7 +1319,7 @@ function banner(msg) {
 }
 function drawView() {
   if (frame.width) {
-    if (view.width != frame.width || view.height != frame.height) { view.width = frame.width; view.height = frame.height; view.style.aspectRatio = frame.width + '/' + frame.height; }
+    if (view.width != frame.width || view.height != frame.height) { view.width = frame.width; view.height = frame.height; }
     vctx.drawImage(source == 'cam' && video.readyState >= 2 ? video : frame, 0, 0, view.width, view.height);
     vctx.fillStyle = 'rgba(5,8,12,.18)'; vctx.fillRect(0, 0, view.width, view.height);
   } else { vctx.fillStyle = '#05070a'; vctx.fillRect(0, 0, view.width, view.height); }
@@ -1552,6 +1623,48 @@ function updateTele() {
   $('hud').innerHTML = source ? '<span>' + (S.mode == 'board' ? 'MARKER ' + mkCount + '/4' : H ? 'FOGLIO OK' : 'FOGLIO ?') + '</span><span>' + (source == 'cam' ? fps.toFixed(0) + ' FPS' : 'FERMO') + '</span>' + (S.playing && step ? '<span>PASSO ' + step + '/16</span>' : '') : '';
 }
 
+
+/* ---------------- menu in basso ---------------- */
+var NOTES_KEY = 'lettore-v2-appunti';
+var NOTES_DEFAULT = '# Appunti del progetto · lettore di disegni\n\n## Prove con i bambini\n- \n\n## Cosa funziona\n- \n\n## Cosa cambiare nel cartone\n- \n\n## Domande aperte\n- Misure della cornice più piccola\n';
+function buildDock() {
+  var tabs = ['cmd', 'set', 'dat', 'inf', 'not'], cur = 'cmd';
+  try { cur = localStorage.getItem('lettore-v2-tab') || 'cmd'; } catch (e) {}
+  function show(t, fromClick) {
+    var dk = $('dock');
+    if (fromClick && t == cur && !dk.classList.contains('fold')) { fold(true); return; }
+    cur = t; fold(false);
+    tabs.forEach(function (x) { $('tab-' + x).setAttribute('aria-selected', x == t); $('pane-' + x).hidden = x != t; });
+    try { localStorage.setItem('lettore-v2-tab', t); } catch (e) {}
+  }
+  function fold(f) { $('dock').classList.toggle('fold', f); $('dockFold').textContent = f ? '▴' : '▾'; $('dockFold').setAttribute('aria-expanded', !f); if (f) tabs.forEach(function (x) { $('tab-' + x).setAttribute('aria-selected', false); }); else $('tab-' + cur).setAttribute('aria-selected', true); }
+  tabs.forEach(function (x, i) {
+    var b = $('tab-' + x); b.onclick = function () { show(x, true); };
+    b.onkeydown = function (e) { var d = e.key == 'ArrowRight' ? 1 : e.key == 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); e.stopPropagation(); var n = tabs[(i + d + tabs.length) % tabs.length]; show(n); $('tab-' + n).focus(); } };
+  });
+  $('dockFold').onclick = function () { var f = !$('dock').classList.contains('fold'); fold(f); };
+  show(cur);
+  /* legende in Info */
+  $('legendC').innerHTML = L.instruments.map(function (i) { return '<span><i style="background:' + i.color + '"></i>' + i.label + ' = ' + i.name.toLowerCase() + '</span>'; }).join('');
+  $('legendD').innerHTML = L.drums.map(function (d) { return '<span>' + shapeSvg(d.shape, 13) + d.name.toLowerCase() + '</span>'; }).join('');
+  /* appunti */
+  var ta = $('notes'), t0 = null;
+  try { ta.value = localStorage.getItem(NOTES_KEY) || NOTES_DEFAULT; } catch (e) { ta.value = NOTES_DEFAULT; }
+  function save() { try { localStorage.setItem(NOTES_KEY, ta.value); var d = new Date(); $('notesState').textContent = 'Salvato in questo browser alle ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + '. Per condividerli scaricali.'; } catch (e) { $('notesState').textContent = 'Non riesco a salvare in questo browser: scarica il file.'; } }
+  ta.oninput = function () { clearTimeout(t0); t0 = setTimeout(save, 400); };
+  $('notesStamp').onclick = function () {
+    var d = new Date(), on = L.instruments.filter(function (x, i) { return !S.muteC[i]; }).map(function (x) { return x.name.toLowerCase(); });
+    ta.value += '\n## Prova ' + d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + '\n- ' + (S.hand == 'right' ? 'destrimano' : 'mancino') + ' · ' + S.bpm + ' bpm · scala ' + L.scales[S.scale].name.toLowerCase() + ' · suonano: ' + on.join(', ') + '\n- \n';
+    save(); ta.focus(); ta.scrollTop = ta.scrollHeight;
+  };
+  $('notesDl').onclick = function () { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ta.value], { type: 'text/markdown' })); a.download = 'appunti-lettore-disegni.md'; a.click(); };
+  $('notesCopy').onclick = function () { try { navigator.clipboard.writeText(ta.value); toast('Appunti copiati'); } catch (e) {} };
+}
+function updateDockMini() {
+  var ph = playheadPos(), step = ph == null ? null : Math.min(16, Math.floor(ph / 4) + 1);
+  $('dockMini').textContent = (S.playing ? '▶ ' : '■ ') + S.bpm + ' bpm' + (step ? ' · passo ' + step + '/16' : '') + ' · ' + (S.mode == 'board' ? 'marker ' + mkCount + '/4' : H ? 'foglio ok' : 'cerco il foglio') + (S.muteC.some(Boolean) || S.muteD.some(Boolean) ? ' · muti: ' + L.instruments.filter(function (x, i) { return S.muteC[i]; }).concat(L.drums.filter(function (x, i) { return S.muteD[i]; })).map(function (x) { return x.name.toLowerCase(); }).join(', ') : '');
+}
+
 /* ---------------- interfaccia ---------------- */
 function renderUI() {
   var p = $('bPlay'); p.textContent = S.playing ? '■ STOP' : '▶ START'; p.classList.toggle('on', S.playing); p.setAttribute('aria-pressed', S.playing);
@@ -1584,7 +1697,8 @@ function buildUI() {
   $('bRot').onclick = function () { rot180 = !rot180; if (sheetCorners) setSheetH(sheetCorners); };
   view.addEventListener('click', function (e) {
     if (!manualPts) return;
-    var r = view.getBoundingClientRect(); manualPts.push([(e.clientX - r.left) / r.width * view.width, (e.clientY - r.top) / r.height * view.height]);
+    var r = view.getBoundingClientRect(), k = Math.min(r.width / view.width, r.height / view.height), ox = (r.width - view.width * k) / 2, oy = (r.height - view.height * k) / 2;
+    manualPts.push([(e.clientX - r.left - ox) / k, (e.clientY - r.top - oy) / k]);
     if (manualPts.length == 4) { var c = manualPts; manualPts = null; rot180 = false; setSheetH(c); sheetLock = true; toast('Angoli segnati'); }
   });
   applyMode();
@@ -1619,7 +1733,7 @@ function buildUI() {
   $('goDemo').onclick = function () { initAudioSafe(); loadDemo(); hideStart(); };
   $('goPhoto').onchange = function () { if (this.files[0]) { initAudioSafe(); loadPhoto(this.files[0]); srcLabel = this.files[0].name; hideStart(); } };
   document.addEventListener('keydown', function (e) {
-    if (e.target.tagName == 'INPUT' || e.target.tagName == 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.tagName == 'INPUT' || e.target.tagName == 'SELECT' || e.target.tagName == 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
     if ((e.key == ' ' || e.key == 'Enter') && e.target.tagName == 'BUTTON') return;
     var k = e.key, used = true;
     if (k == ' ') { initAudioSafe(); togglePlay(); } else if (k == 'r' || k == 'R') { initAudioSafe(); restart(); } else if (k == 'w' || k == 'W') toggleMode(); else if (k == 'a' || k == 'A') toggleRec();
@@ -1633,7 +1747,7 @@ function buildUI() {
     else used = false;
     if (used) e.preventDefault();
   });
-  buildTwin(); renderUI();
+  buildTwin(); buildDock(); renderUI();
 }
 function listCamerasSafe() { try { listCameras(); } catch (e) {} }
 function hideStart() { $('start').hidden = true; $('start').style.display = 'none'; }
@@ -1641,7 +1755,7 @@ function wake() { try { if (navigator.wakeLock) navigator.wakeLock.request('scre
 document.addEventListener('visibilitychange', function () { if (document.visibilityState == 'visible' && source == 'cam') wake(); });
 
 var lastTele = 0;
-function frameLoop(t) { drawView(); updateTwin(); if (!lastTele || t - lastTele > 250) { lastTele = t || 1; updateTele(); } requestAnimationFrame(frameLoop); }
+function frameLoop(t) { drawView(); updateTwin(); if (!lastTele || t - lastTele > 250) { lastTele = t || 1; updateTele(); updateDockMini(); } requestAnimationFrame(frameLoop); }
 buildUI(); readLoop(); requestAnimationFrame(frameLoop);
 logEvent('pronto · base ' + L.board.w + '×' + L.board.h + ' mm · ' + (S.hand == 'right' ? 'destrimano' : 'mancino'));
 window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
