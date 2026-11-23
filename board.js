@@ -136,6 +136,7 @@ var BOARD = (function () {
   function full(opts) {
     opts = opts || {};
     var s = '<rect x="0" y="0" width="' + L.board.w + '" height="' + L.board.h + '" fill="' + (opts.bg || '#fff') + '"/>';
+    if (opts.sheetOnly) return s + demoDrawing();
     L.markers.forEach(function (m) { s += marker(m.id, m.x, m.y, m.size, 4); });
     s += panel({});
     s += matrix({});

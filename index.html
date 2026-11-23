@@ -90,6 +90,17 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
 <main>
   <section class="card">
     <h2>Cosa vede la camera</h2>
+    <div class="group" style="margin:0 0 8px">
+      <select id="selMode" class="btn" aria-label="Modalità">
+        <option value="sheet">Solo foglio (prova veloce)</option>
+        <option value="board">Base completa con marker</option>
+      </select>
+      <span class="group" id="sheetTools">
+        <button class="btn" id="bFind">Ritrova il foglio</button>
+        <button class="btn" id="bCorners">Segna gli angoli a mano</button>
+        <button class="btn" id="bRot">Ruota 180°</button>
+      </span>
+    </div>
     <canvas id="view" width="640" height="480"></canvas>
   </section>
   <section class="card">
@@ -177,10 +188,10 @@ var $ = function (id) { return document.getElementById(id); };
 var S = {
   playing: false, loop: true, rec: false, bpm: 90, transpose: 0, scale: 0,
   muteC: new Array(NI).fill(false), muteD: new Array(ND).fill(false),
-  volume: 0.8, sheet: 'o3', camCtl: true, sens: 0, freeze: false, debug: false
+  volume: 0.8, sheet: 'o3', camCtl: true, mode: 'sheet', sens: 0, freeze: false, debug: false
 };
-try { var saved = JSON.parse(localStorage.getItem('lettore-maestra-v2') || '{}'); ['volume', 'sheet', 'camCtl', 'sens'].forEach(function (k) { if (k in saved) S[k] = saved[k]; }); } catch (e) {}
-function saveTeacher() { try { localStorage.setItem('lettore-maestra-v2', JSON.stringify({ volume: S.volume, sheet: S.sheet, camCtl: S.camCtl, sens: S.sens })); } catch (e) {} }
+try { var saved = JSON.parse(localStorage.getItem('lettore-maestra-v2') || '{}'); ['volume', 'sheet', 'camCtl', 'sens', 'mode'].forEach(function (k) { if (k in saved) S[k] = saved[k]; }); } catch (e) {}
+function saveTeacher() { try { localStorage.setItem('lettore-maestra-v2', JSON.stringify({ volume: S.volume, sheet: S.sheet, camCtl: S.camCtl, sens: S.sens, mode: S.mode })); } catch (e) {} }
 
 var committed = [], pending = [];
 for (var c0 = 0; c0 < COLS; c0++) { committed.push([]); pending.push({ sig: '', n: 0, notes: [] }); }
@@ -273,7 +284,7 @@ function startCamera(deviceId) {
     if (e && (e.name == 'OverconstrainedError' || e.name == 'ConstraintNotSatisfiedError' || e.name == 'TypeError')) return open(deviceId ? { deviceId: deviceId } : { facingMode: 'environment' }).catch(function () { return open(true); });
     throw e;
   }).then(function (st) {
-    stream = st; video.srcObject = st; source = 'cam'; H = null;
+    stream = st; video.srcObject = st; source = 'cam'; H = null; findSheet();
     return video.play().catch(function () {}).then(function () { listCameras(); checkTorch(); });
   });
 }
@@ -291,14 +302,14 @@ function checkTorch() {
   var tr = stream && stream.getVideoTracks()[0], caps = tr && tr.getCapabilities ? tr.getCapabilities() : {};
   $('rowTorch').hidden = !caps.torch;
 }
-function useImage(im) { stopStream(); stillImage = im; source = 'image'; H = null; }
+function useImage(im) { stopStream(); stillImage = im; source = 'image'; H = null; findSheet(); lastDetect = 0; }
 function loadPhoto(file) {
   var url = URL.createObjectURL(file), im = new Image();
   im.onload = function () { useImage(im); toast('Foto caricata'); };
   im.src = url;
 }
 function loadDemo() {
-  var svg = BOARD.svg(BOARD.full({ demo: true, speedAngle: -20 }), -20, -20, L.board.w + 40, L.board.h + 40, 'width="' + (L.board.w + 40) * 2 + '" height="' + (L.board.h + 40) * 2 + '"');
+  var svg = BOARD.svg(S.mode == 'sheet' ? BOARD.full({ sheetOnly: true, bg: '#6b5440' }) : BOARD.full({ demo: true, speedAngle: -20 }), -20, -20, L.board.w + 40, L.board.h + 40, 'width="' + (L.board.w + 40) * 2 + '" height="' + (L.board.h + 40) * 2 + '"');
   var im = new Image();
   im.onload = function () { useImage(im); toast('Demo: una base disegnata al computer'); };
   im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
@@ -512,15 +523,72 @@ function readControls() {
   if (a != null) { var t = (Math.max(-135, Math.min(135, a)) + 135) / 270; v = Math.round((L.speedRange[0] + t * (L.speedRange[1] - L.speedRange[0])) / 2) * 2; v = stableKnob('sp', v); if (v != null) { S.bpm = v; renderUI(); } }
 }
 
+/* ---------------- modalità solo foglio ---------------- */
+var sheetLock = false, sheetCand = null, sheetCandN = 0, manualPts = null, rot180 = false, sheetCorners = null;
+function otsu(hist, total) {
+  var sum = 0, i; for (i = 0; i < 256; i++) sum += i * hist[i];
+  var sB = 0, wB = 0, best = 0, th = 128;
+  for (i = 0; i < 256; i++) { wB += hist[i]; if (!wB) continue; var wF = total - wB; if (!wF) break; sB += i * hist[i];
+    var mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; th = i; } }
+  return th;
+}
+/* trova il foglio bianco più grande su uno sfondo più scuro e ne restituisce i 4 angoli (px del frame) */
+function detectSheet() {
+  var sc = Math.min(1, 360 / frame.width), w = Math.round(frame.width * sc), h = Math.round(frame.height * sc);
+  small.width = w; small.height = h; sctx.drawImage(frame, 0, 0, w, h);
+  var d = sctx.getImageData(0, 0, w, h).data, n = w * h, lum = new Uint8Array(n), hist = new Array(256).fill(0), i;
+  for (i = 0; i < n; i++) { var l = (d[4 * i] * .3 + d[4 * i + 1] * .59 + d[4 * i + 2] * .11) | 0; lum[i] = l; hist[l]++; }
+  var th = otsu(hist, n), lab = new Int32Array(n), stack = new Int32Array(n), best = null, id = 0;
+  for (i = 0; i < n; i++) {
+    if (lab[i] || lum[i] <= th) continue;
+    id++; var sp = 0, size = 0, e = { minS: 1e9, maxS: -1e9, minD: 1e9, maxD: -1e9 }; stack[sp++] = i; lab[i] = id;
+    while (sp) {
+      var k = stack[--sp], x = k % w, y = (k / w) | 0; size++;
+      var s1 = x + y, d1 = x - y;
+      if (s1 < e.minS) { e.minS = s1; e.tl = [x, y]; } if (s1 > e.maxS) { e.maxS = s1; e.br = [x, y]; }
+      if (d1 < e.minD) { e.minD = d1; e.bl = [x, y]; } if (d1 > e.maxD) { e.maxD = d1; e.tr = [x, y]; }
+      if (x > 0 && !lab[k - 1] && lum[k - 1] > th) { lab[k - 1] = id; stack[sp++] = k - 1; }
+      if (x < w - 1 && !lab[k + 1] && lum[k + 1] > th) { lab[k + 1] = id; stack[sp++] = k + 1; }
+      if (y > 0 && !lab[k - w] && lum[k - w] > th) { lab[k - w] = id; stack[sp++] = k - w; }
+      if (y < h - 1 && !lab[k + w] && lum[k + w] > th) { lab[k + w] = id; stack[sp++] = k + w; }
+    }
+    if (!best || size > best.size) { e.size = size; best = e; }
+  }
+  if (!best || best.size < n * 0.04 || best.size > n * 0.97) return null;
+  var c = [best.tl, best.tr, best.br, best.bl].map(function (p) { return [(p[0] + .5) / sc, (p[1] + .5) / sc]; });
+  function dist(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
+  if (dist(c[0], c[3]) > dist(c[0], c[1])) c = [c[3], c[0], c[1], c[2]]; /* foglio in verticale nell'immagine: lo giro */
+  return c;
+}
+function orient(c) { return rot180 ? [c[2], c[3], c[0], c[1]] : c; }
+function setSheetH(c) {
+  var S0 = L.sheet; sheetCorners = c;
+  H = homography([[S0.x, S0.y], [S0.x + S0.w, S0.y], [S0.x + S0.w, S0.y + S0.h], [S0.x, S0.y + S0.h]], orient(c));
+  mkSeen = performance.now();
+}
+function findSheet() { sheetLock = false; sheetCand = null; sheetCandN = 0; H = null; sheetCorners = null; }
+
 /* ---------------- ciclo di lettura ---------------- */
 var readTimes = [], lastDetect = 0;
 function readLoop() {
   var t0 = performance.now();
   if (grab()) {
-    if (!H || t0 - lastDetect > (source == 'image' ? 2000 : 350)) { detect(); lastDetect = t0; }
-    if (H) {
-      readSheet(); readMatrix();
-      if (S.camCtl) readControls();
+    if (S.mode == 'sheet') {
+      if (!sheetLock && manualPts == null && t0 - lastDetect > 300) {
+        lastDetect = t0; var c = detectSheet();
+        if (c) {
+          var near = sheetCand && c.every(function (p, k) { return Math.hypot(p[0] - sheetCand[k][0], p[1] - sheetCand[k][1]) < frame.width / 80; });
+          if (near) sheetCandN++; else { sheetCand = c; sheetCandN = 1; }
+          if (sheetCandN >= (source == 'image' ? 1 : 3)) { setSheetH(c); sheetLock = true; toast('Foglio trovato: ora lo leggo'); }
+        } else sheetCandN = 0;
+      }
+      if (H) readSheet();
+    } else {
+      if (!H || t0 - lastDetect > (source == 'image' ? 2000 : 350)) { detect(); lastDetect = t0; }
+      if (H) {
+        readSheet(); readMatrix();
+        if (S.camCtl) readControls();
+      }
     }
     readTimes.push(performance.now()); if (readTimes.length > 10) readTimes.shift();
   }
@@ -528,9 +596,14 @@ function readLoop() {
   setTimeout(readLoop, source == 'image' ? 250 : 90);
 }
 function updateChips() {
+  if (S.mode == 'sheet') {
+    var cs = $('chipMk'); cs.className = 'chip ' + (H ? 'ok' : 'bad');
+    cs.lastChild.textContent = H ? 'foglio trovato' : manualPts ? 'segna gli angoli' : 'cerco il foglio';
+  } else {
   var ok = H && performance.now() - mkSeen < 3000;
   var c = $('chipMk'); c.className = 'chip ' + (mkCount >= 4 ? 'ok' : mkCount >= 2 ? 'warn' : ok ? 'warn' : 'bad');
   c.lastChild.textContent = 'marker ' + mkCount + '/4' + (!mkCount && H ? ' · tengo l\'ultima posizione' : '');
+  }
   var f = $('chipFps'), n = readTimes.length;
   var fps = n > 1 ? (n - 1) * 1000 / (readTimes[n - 1] - readTimes[0]) : 0;
   f.className = 'chip ' + (fps > 5 ? 'ok' : fps > 2 ? 'warn' : source == 'image' ? 'ok' : 'bad');
@@ -709,15 +782,37 @@ function toggleRec() {
 
 /* ---------------- disegno a schermo ---------------- */
 var view = $('view'), vctx = view.getContext('2d'), roll = $('roll'), rctx = roll.getContext('2d');
+function banner(msg) {
+  vctx.fillStyle = 'rgba(0,0,0,.6)'; vctx.fillRect(0, view.height / 2 - 34, view.width, 68);
+  vctx.fillStyle = '#fff'; vctx.font = '600 ' + Math.round(view.width / 36) + 'px Helvetica,Arial'; vctx.textAlign = 'center';
+  vctx.fillText(msg, view.width / 2, view.height / 2 + 8); vctx.textAlign = 'left';
+}
 function drawView() {
   if (frame.width) {
     if (view.width != frame.width || view.height != frame.height) { view.width = frame.width; view.height = frame.height; }
     vctx.drawImage(source == 'cam' && video.readyState >= 2 ? video : frame, 0, 0, view.width, view.height);
   }
+  if (manualPts) {
+    var names = ['in alto a sinistra', 'in alto a destra', 'in basso a destra', 'in basso a sinistra'];
+    manualPts.forEach(function (p, k) { vctx.fillStyle = '#ff5a1f'; vctx.beginPath(); vctx.arc(p[0], p[1], Math.max(6, view.width / 120), 0, 7); vctx.fill(); vctx.fillStyle = '#fff'; vctx.font = '700 ' + Math.round(view.width / 50) + 'px Helvetica,Arial'; vctx.fillText(String(k + 1), p[0] + 10, p[1] - 10); });
+    banner('Clicca l\'angolo del foglio ' + names[manualPts.length] + ' (' + (manualPts.length + 1) + ' di 4)');
+    return;
+  }
   if (!H) {
-    vctx.fillStyle = 'rgba(0,0,0,.55)'; vctx.fillRect(0, view.height / 2 - 34, view.width, 68);
-    vctx.fillStyle = '#fff'; vctx.font = '600 ' + Math.round(view.width / 32) + 'px Helvetica,Arial'; vctx.textAlign = 'center';
-    vctx.fillText(source ? 'Cerco i 4 marker neri agli angoli…' : 'Camera spenta', view.width / 2, view.height / 2 + 8);
+    banner(!source ? 'Camera spenta' : S.mode == 'sheet' ? 'Cerco il foglio bianco… mettilo su un fondo più scuro' : 'Cerco i 4 marker neri agli angoli…');
+    return;
+  }
+  if (S.mode == 'sheet') {
+    var lw0 = Math.max(2, view.width / 400), Rr = L.read, cw0 = Rr.w / COLS;
+    function poly0(pts, stroke, fill, w) { vctx.beginPath(); pts.forEach(function (p, i) { var q = proj(H, p[0], p[1]); if (i) vctx.lineTo(q[0], q[1]); else vctx.moveTo(q[0], q[1]); }); vctx.closePath(); if (fill) { vctx.fillStyle = fill; vctx.fill(); } if (stroke) { vctx.strokeStyle = stroke; vctx.lineWidth = w || lw0; vctx.stroke(); } }
+    var Sh = L.sheet;
+    poly0([[Sh.x, Sh.y], [Sh.x + Sh.w, Sh.y], [Sh.x + Sh.w, Sh.y + Sh.h], [Sh.x, Sh.y + Sh.h]], '#2bd96b', null, lw0 * 1.5);
+    poly0([[Rr.x, Rr.y], [Rr.x + Rr.w, Rr.y], [Rr.x + Rr.w, Rr.y + Rr.h], [Rr.x, Rr.y + Rr.h]], 'rgba(255,90,31,.9)');
+    var tl = proj(H, Sh.x + 6, Sh.y + 12); vctx.fillStyle = '#2bd96b'; vctx.font = '700 ' + Math.round(view.width / 55) + 'px Helvetica,Arial'; vctx.textAlign = 'left'; vctx.fillText('ALTO ↑', tl[0], tl[1]);
+    if (S.debug) debugPts.forEach(function (p) { var q = proj(H, p[0], p[1]); vctx.fillStyle = L.instruments[p[2]].color; vctx.fillRect(q[0] - 2, q[1] - 2, 4, 4); });
+    committed.forEach(function (notes, c) { notes.forEach(function (n) { var q = proj(H, Rr.x + (c + .5) * cw0, Rr.y + (1 - n.y) * Rr.h); vctx.beginPath(); vctx.arc(q[0], q[1], lw0 * 2.2, 0, 7); vctx.fillStyle = L.instruments[n.i].color; vctx.fill(); vctx.strokeStyle = '#fff'; vctx.lineWidth = lw0 * .6; vctx.stroke(); }); });
+    var ph0 = playheadPos();
+    if (ph0 != null) { var x0 = Rr.x + ph0 * cw0; poly0([[x0 - 2.5, Rr.y - 4], [x0 + 2.5, Rr.y - 4], [x0 + 2.5, Rr.y + Rr.h + 4], [x0 - 2.5, Rr.y + Rr.h + 4]], null, 'rgba(255,220,60,.6)'); }
     return;
   }
   var lw = Math.max(2, view.width / 400);
@@ -790,6 +885,17 @@ function buildUI() {
   L.scales.forEach(function (sc, i) { var b = document.createElement('button'); b.className = 'btn'; b.innerHTML = '<span class="sw" style="background:' + sc.color + '"></span>' + sc.name; b.onclick = function () { S.scale = i; renderUI(); }; $('scales').appendChild(b); });
   L.instruments.forEach(function (ins, i) { var b = document.createElement('button'); b.className = 'btn mute'; b.innerHTML = '<span class="sw" style="background:' + ins.color + '"></span>' + ins.name; b.onclick = function () { initAudio(); S.muteC[i] = !S.muteC[i]; applyMutes(); }; $('mutesC').appendChild(b); });
   L.drums.forEach(function (d, i) { var b = document.createElement('button'); b.className = 'btn mute'; b.textContent = d.name; b.onclick = function () { initAudio(); S.muteD[i] = !S.muteD[i]; applyMutes(); }; $('mutesD').appendChild(b); });
+  function applyMode() { $('selMode').value = S.mode; $('sheetTools').hidden = S.mode != 'sheet'; H = null; findSheet(); manualPts = null; lastDetect = 0; }
+  $('selMode').onchange = function () { S.mode = this.value; saveTeacher(); applyMode(); };
+  $('bFind').onclick = function () { manualPts = null; findSheet(); };
+  $('bCorners').onclick = function () { manualPts = []; sheetLock = true; H = null; toast('Clicca i 4 angoli del foglio sull\'immagine della camera'); };
+  $('bRot').onclick = function () { rot180 = !rot180; if (sheetCorners) setSheetH(sheetCorners); };
+  view.addEventListener('click', function (e) {
+    if (!manualPts) return;
+    var r = view.getBoundingClientRect(); manualPts.push([(e.clientX - r.left) / r.width * view.width, (e.clientY - r.top) / r.height * view.height]);
+    if (manualPts.length == 4) { var c = manualPts; manualPts = null; rot180 = false; setSheetH(c); sheetLock = true; toast('Angoli segnati'); }
+  });
+  applyMode();
   $('bPlay').onclick = togglePlay; $('bRestart').onclick = restart; $('bMode').onclick = toggleMode; $('bRec').onclick = toggleRec;
   $('rSpeed').oninput = function () { S.bpm = +this.value; renderUI(); };
   $('tDown').onclick = function () { S.transpose = Math.max(-L.transposeRange, S.transpose - 1); renderUI(); };
