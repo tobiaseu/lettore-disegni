@@ -50,11 +50,12 @@ var LAYOUT = {
 
   /* I 3 comandi nella colonna: dito sul cerchio = premi, disco girevole = manopola */
   pads: {
-    play:    { x: 95, y: 112, r: 24, name: 'START · STOP' },
-    restart: { x: 95, y: 198, r: 20, name: 'RESTART' }
+    /* dal basso: START · STOP, poi RESTART (stessa misura), in alto la manopola SPEED */
+    play:    { x: 95, y: 335, r: 24, name: 'START · STOP' },
+    restart: { x: 95, y: 245, r: 24, name: 'RESTART' }
   },
   knobs: {
-    speed:   { x: 95, y: 300, r: 24, dot: 16, name: 'SPEED' }
+    speed:   { x: 95, y: 130, r: 24, dot: 16, name: 'SPEED' }
   },
 
   /* Scale (si scelgono dal computer), da usare con la manopola in futuro */

@@ -50,13 +50,12 @@ var BOARD = (function () {
     opts = opts || {};
     var P = L.panel, s = '', pl = L.pads.play, rs = L.pads.restart, sp = L.knobs.speed;
     s += '<rect x="' + P.x + '" y="' + P.y + '" width="' + P.w + '" height="' + P.h + '" fill="#fff" stroke="' + (opts.cut ? '#aaa' : '#111') + '" stroke-width="' + (opts.cut ? .3 : .6) + '"' + (opts.cut ? ' stroke-dasharray="2 1.5"' : '') + '/>';
-    s += text(P.x + P.w / 2, P.y + 10, 'TEMPO', 4.2, { ls: .8 });
-    /* START / STOP: triangolo + quadrato sopra il cerchio */
+        /* START / STOP: triangolo + quadrato sopra il cerchio */
     s += pad(pl, '#111', 3.2);
     s += '<path d="M' + (pl.x - 9) + ' ' + (pl.y - pl.r - 9) + 'l5 3l-5 3z" fill="#111"/><rect x="' + (pl.x + 3) + '" y="' + (pl.y - pl.r - 9) + '" width="6" height="6" fill="#111"/>';
     s += text(pl.x, pl.y + pl.r + 7, 'START · STOP', 3.3);
     /* RESTART: freccia circolare */
-    s += pad(rs, '#111', 2.6);
+    s += pad(rs, '#111', 3.2);
     s += '<path d="M' + (rs.x - 4) + ' ' + (rs.y - rs.r - 9) + 'a4 4 0 1 0 4 -4" fill="none" stroke="#111" stroke-width="1"/><path d="M' + (rs.x - 1) + ' ' + (rs.y - rs.r - 15.5) + 'l3 2.5l-3 2.5z" fill="#111"/>';
     s += text(rs.x, rs.y + rs.r + 7, 'RESTART', 3.3);
     /* SPEED */
