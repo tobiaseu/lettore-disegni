@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Lettore di disegni · cosa legge la camera</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f2ee;color:#161616;font:15px/1.45 Helvetica,Arial,sans-serif}
+.wrap{max-width:1500px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:#666;margin:0 0 16px;max-width:80ch}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:18px;align-items:start}
+@media (max-width:1000px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:#fff;border:1px solid #dcdad3;border-radius:14px;padding:12px}
+svg{display:block;width:100%;height:auto}
+ol{padding-left:22px;margin:0}
+li{margin:0 0 12px}
+li b{display:block;font-size:16px}
+.k{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Cosa legge la camera</h1>
+  <p class="sub">La base vista dall'alto, già raddrizzata. I quadratini colorati sono i punti che il programma misura a ogni lettura, circa 10 volte al secondo. Tutte le misure sono in millimetri e vengono da <span class="mono">layout.js</span>.</p>
+  <div class="grid">
+    <div class="card" id="diagram"></div>
+    <div class="card">
+      <ol>
+        <li><b><span class="k" style="background:#2bd96b"></span>1 · Quattro marker agli angoli</b>Il programma trova i 4 quadrati neri (marker ArUco 0, 1, 2, 3) e calcola la prospettiva. Da quel momento sa dov'è ogni millimetro della base, anche se il telefono è storto. Se una mano copre un marker, tiene l'ultima posizione buona.</li>
+        <li><b><span class="k" style="background:#ff5a1f"></span>2 · Foglio A4 orizzontale, 297 × 210</b>Legge l'area interna 285 × 198, lasciando 6 mm di margine per non scambiare il bordo della carta per un segno. La divide in <b style="display:inline">64 colonne</b> (16 tempi × 4) e 120 righe. Ogni punto viene classificato: carta, nero (basso), blu (piano), rosso (chitarra), giallo (violino) o verde (flauto). L'altezza del segno dà la nota, di base 3 ottave da Do3 in basso a Do6 in alto. Una linea lunga è una nota tenuta.</li>
+        <li><b><span class="k" style="background:#7a3cff"></span>3 · Matrice 4 × 16, cartoncino 297 × 95</b>La griglia ha le stesse 16 colonne del foglio, quindi la barra del tempo passa su entrambi insieme. In ogni casella misura 9 punti al centro: se più di metà non sono bianchi (un bollino o un gettone), quella casella suona. Le righe, dall'alto: charleston, battimani, rullante, cassa.</li>
+        <li><b><span class="k" style="background:#0aa3c2"></span>4 · Colonna comandi, 70 × 325</b><b style="display:inline">START · STOP</b> e <b style="display:inline">RESTART</b> sono cerchi bianchi: quando un dito li copre per un attimo, scatta il comando. <b style="display:inline">SPEED</b> è un disco girevole con un pallino nero: il programma guarda 48 punti in cerchio e trova dov'è il pallino. Da −135° a +135° la velocità va da 50 a 160 battiti al minuto.</li>
+        <li><b>5 · Il suono esce dal computer</b>Sul computer gira tutto: la camera del telefono, lo schema che suona, il volume. Il telefono fa solo da occhio.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+<script src="vendor/cv.js"></script>
+<script src="vendor/aruco.js"></script>
+<script src="layout.js"></script>
+<script src="board.js"></script>
+<script>
+(function () {
+  var L = LAYOUT, t = BOARD.text, s = BOARD.full({ demo: true, speedAngle: -20, bg: '#f7f4ec' });
+  function pt(x, y, c, r) { return '<rect x="' + (x - r) + '" y="' + (y - r) + '" width="' + 2 * r + '" height="' + 2 * r + '" fill="' + c + '"/>'; }
+  function box(r, c, w, dash) { return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" fill="none" stroke="' + c + '" stroke-width="' + (w || 1) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>'; }
+  var o = '';
+  /* marker */
+  L.markers.forEach(function (m) { var h = m.size / 2; o += '<rect x="' + (m.x - h) + '" y="' + (m.y - h) + '" width="' + m.size + '" height="' + m.size + '" fill="none" stroke="#2bd96b" stroke-width="1.6"/>' + t(m.x, m.y + h + 9, 'marker ' + m.id, 5.5, { c: '#159a48', w: 700 }); });
+  /* foglio: colonne e righe campionate (una riga su 4 per leggibilità) */
+  var R = L.read, cw = R.w / 64, rh = R.h / 120;
+  o += box(L.sheet, '#ff5a1f', .6, '3 2') + box(R, '#ff5a1f', 1.2);
+  for (var c = 0; c < 64; c++) for (var r = 0; r < 120; r += 4) o += pt(R.x + (c + .5) * cw, R.y + (r + .5) * rh, 'rgba(255,90,31,.45)', .35);
+  for (var k = 1; k < 16; k++) o += '<line x1="' + (R.x + k * R.w / 16) + '" x2="' + (R.x + k * R.w / 16) + '" y1="' + R.y + '" y2="' + (L.matrix.y + L.matrix.h) + '" stroke="rgba(255,90,31,' + (k % 4 ? .25 : .6) + ')" stroke-width="' + (k % 4 ? .3 : .6) + '"/>';
+  /* matrice: 9 punti per casella */
+  var M = L.matrix, mw = M.w / 16, mh = M.h / 4;
+  o += box(L.matrixCard, '#7a3cff', .6, '3 2') + box(M, '#7a3cff', 1.2);
+  for (var i = 0; i < 4; i++) for (var j = 0; j < 16; j++) for (var a = -1; a <= 1; a++) for (var b = -1; b <= 1; b++) o += pt(M.x + (j + .5 + a * .22) * mw, M.y + (i + .5 + b * .22) * mh, '#7a3cff', .55);
+  /* comandi */
+  o += box(L.panel, '#0aa3c2', 1.2);
+  Object.keys(L.pads).forEach(function (key) {
+    var p = L.pads[key], pts = [[0, 0]];
+    for (var q = 0; q < 6; q++) pts.push([Math.cos(q * Math.PI / 3) * p.r * .35, Math.sin(q * Math.PI / 3) * p.r * .35]);
+    for (q = 0; q < 8; q++) pts.push([Math.cos(q * Math.PI / 4 + .3) * p.r * .6, Math.sin(q * Math.PI / 4 + .3) * p.r * .6]);
+    pts.forEach(function (d) { o += pt(p.x + d[0], p.y + d[1], '#0aa3c2', .8); });
+  });
+  var K = L.knobs.speed;
+  for (var n = 0; n < 48; n++) { var pp = BOARD.polar(K.x, K.y, K.dot, n * 7.5); o += pt(pp[0], pp[1], '#0aa3c2', .7); }
+  /* quote */
+  var q1 = '#444';
+  o += t(L.sheet.x + L.sheet.w / 2, L.sheet.y - 4, 'foglio A4 297 × 210 · letto 285 × 198 · 64 colonne × 120 righe', 5, { c: '#ff5a1f', w: 700 });
+  o += t(L.matrixCard.x + L.matrixCard.w / 2, L.matrixCard.y + L.matrixCard.h + 8, 'matrice 297 × 95 · griglia 285 × 83 · 4 × 16 caselle', 5, { c: '#7a3cff', w: 700 });
+  o += t(L.panel.x + L.panel.w / 2, L.panel.y + L.panel.h + 8, 'comandi 70 × 325', 5, { c: '#0aa3c2', w: 700 });
+  o += t(L.sheet.x + L.sheet.w + 3, (L.sheet.y + L.sheet.h + L.matrixCard.y) / 2 + 2, '↕ 20 mm', 4, { c: q1, a: 'start' });
+  o += t(L.board.w / 2, L.board.h - 6, 'base 497 × 445 · zona di gioco 377 × 325', 5, { c: q1, w: 700 });
+  document.getElementById('diagram').innerHTML = BOARD.svg(s + o, -6, -6, L.board.w + 12, L.board.h + 12, 'role="img" aria-label="Schema della base con le zone lette dalla camera"');
+})();
+</script>
+</body>
+</html>

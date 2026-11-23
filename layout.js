@@ -1,26 +1,38 @@
-/* Lettore di disegni · MVP cartone
-   Misure della base in millimetri, origine in alto a sinistra.
-   Le usano sia l'app (index.html) sia il modello da stampare (modello.html):
-   se cambi una misura qui, ristampa il modello. */
-var LAYOUT = {
-  version: 1,
-  board: { w: 660, h: 460 },
+/* Lettore di disegni · MVP cartone · base v2 (A4)
+   Misure in millimetri, origine nell'angolo in alto a sinistra della base.
+   Le usano l'app (index.html), lo schema (schema.html) e il modello da stampare (modello.html):
+   se cambi una misura qui, ristampa il modello.
 
-  /* Marker ArUco (dizionario ARUCO_MIP_36h12), lato del quadrato nero = size */
+   Conti:
+     colonna pulsanti 70 + spazio 10 + foglio/matrice 297 = 377 mm di larghezza
+     foglio A4 210 + spazio 20 + matrice 95             = 325 mm = altezza della colonna
+     intorno 60 mm di margine per i marker  ->  base 497 x 445 mm */
+var LAYOUT = {
+  version: 2,
+  board: { w: 497, h: 445 },
+  content: { x: 60, y: 60, w: 377, h: 325 },
+
+  /* Marker ArUco (dizionario ARUCO_MIP_36h12), lato del quadrato nero = size.
+     Ognuno sta in diagonale, a 30 mm dall'angolo della zona di gioco. */
   markers: [
-    { id: 0, x: 40,  y: 40,  size: 50, name: 'in alto a sinistra' },
-    { id: 1, x: 620, y: 40,  size: 50, name: 'in alto a destra' },
-    { id: 2, x: 620, y: 420, size: 50, name: 'in basso a destra' },
-    { id: 3, x: 40,  y: 420, size: 50, name: 'in basso a sinistra' }
+    { id: 0, x: 30,  y: 30,  size: 40, name: 'in alto a sinistra' },
+    { id: 1, x: 467, y: 30,  size: 40, name: 'in alto a destra' },
+    { id: 2, x: 467, y: 415, size: 40, name: 'in basso a destra' },
+    { id: 3, x: 30,  y: 415, size: 40, name: 'in basso a sinistra' }
   ],
 
-  /* Foglio A3 senza strisce (386 x 265) appoggiato nelle squadrette d'angolo */
-  sheet: { x: 195, y: 15, w: 386, h: 265 },
-  /* Area suonata, uguale alle schede guida: 10 mm dal bordo sinistro, 34 dall'alto */
-  read: { x: 205, y: 49, w: 366, h: 222 },
+  /* Colonna dei pulsanti a sinistra, 70 x 325 */
+  panel: { x: 60, y: 60, w: 70, h: 325 },
 
-  /* Matrice percussioni 4 x 16, colonne allineate al foglio */
-  matrix: { x: 205, y: 285, w: 366, h: 88, rows: 4, cols: 16 },
+  /* Foglio A4 orizzontale in alto a destra, 297 x 210 */
+  sheet: { x: 140, y: 60, w: 297, h: 210 },
+  /* Parte del foglio che suona: 6 mm di margine su ogni lato, per non leggere il bordo della carta */
+  read: { x: 146, y: 66, w: 285, h: 198 },
+
+  /* Matrice percussioni sotto il foglio, cartoncino 297 x 95.
+     La griglia 4 x 16 ha le stesse colonne del foglio, cosi la barra del tempo e la stessa. */
+  matrixCard: { x: 140, y: 290, w: 297, h: 95 },
+  matrix: { x: 146, y: 296, w: 285, h: 83, rows: 4, cols: 16 },
   drums: [
     { key: 'hat',   name: 'Charleston', short: 'CH' },
     { key: 'clap',  name: 'Battimani',  short: 'BM' },
@@ -28,7 +40,6 @@ var LAYOUT = {
     { key: 'kick',  name: 'Cassa',      short: 'CA' }
   ],
 
-  /* Strumenti per colore: dall'alto in basso come i mute accanto al foglio */
   instruments: [
     { key: 'flute',  name: 'Flauto',   color: '#16975A', label: 'verde' },
     { key: 'violin', name: 'Violino',  color: '#E8B90C', label: 'giallo' },
@@ -36,23 +47,17 @@ var LAYOUT = {
     { key: 'guitar', name: 'Chitarra', color: '#E0322A', label: 'rosso' },
     { key: 'bass',   name: 'Basso',    color: '#111111', label: 'nero' }
   ],
-  muteColor: { x: 176, r: 11, y: [80, 122, 164, 206, 248] },
-  muteDrum:  { x: 176, r: 9 },            /* y = centro di ogni riga della matrice */
 
-  /* Comandi: gruppo SUONO sopra, gruppo TEMPO in basso a sinistra */
-  knobs: {
-    transpose: { x: 45,  y: 150, r: 24, dot: 16, name: 'Trasporta' },
-    scale:     { x: 125, y: 150, r: 24, dot: 16, name: 'Scala' },
-    speed:     { x: 125, y: 250, r: 24, dot: 16, name: 'Velocità' }
-  },
+  /* I 3 comandi nella colonna: dito sul cerchio = premi, disco girevole = manopola */
   pads: {
-    play: { x: 45,  y: 250, r: 22, name: 'PLAY / STOP' },
-    mode: { x: 45,  y: 325, r: 15, name: 'GIRO / UNA VOLTA' },
-    rec:  { x: 125, y: 325, r: 15, name: 'REC' }
+    play:    { x: 95, y: 112, r: 24, name: 'START · STOP' },
+    restart: { x: 95, y: 198, r: 20, name: 'RESTART' }
   },
-  panel: { x: 10, y: 70, w: 185, h: 308 },
+  knobs: {
+    speed:   { x: 95, y: 300, r: 24, dot: 16, name: 'SPEED' }
+  },
 
-  /* Scale della manopola, 5 scatti da -120° a +120° */
+  /* Scale (si scelgono dal computer), da usare con la manopola in futuro */
   scales: [
     { name: 'Sole',       color: '#F2A900', steps: [0, 2, 4, 7, 9] },
     { name: 'Luna',       color: '#5B5BD6', steps: [0, 3, 5, 7, 10] },
@@ -60,9 +65,8 @@ var LAYOUT = {
     { name: 'Pioggia',    color: '#2A8FBF', steps: [0, 2, 3, 5, 7, 8, 10] },
     { name: 'Libero',     color: '#777777', steps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }
   ],
-  scaleAngles: [-120, -60, 0, 60, 120],
-  transposeRange: 6,        /* -6..+6 semitoni su 13 scatti da -135° a +135° */
-  speedRange: [50, 160]     /* battiti al minuto, da -135° a +135° */
+  transposeRange: 6,
+  speedRange: [50, 160]     /* battiti al minuto, manopola da -135° (lento) a +135° (veloce) */
 };
 LAYOUT.matrix.rowY = function (i) { return LAYOUT.matrix.y + (i + 0.5) * LAYOUT.matrix.h / LAYOUT.matrix.rows; };
 LAYOUT.matrix.colX = function (j) { return LAYOUT.matrix.x + (j + 0.5) * LAYOUT.matrix.w / LAYOUT.matrix.cols; };

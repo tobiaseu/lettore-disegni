@@ -102,6 +102,7 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
       <h2>Tempo</h2>
       <div class="group">
         <button class="btn big play" id="bPlay">PLAY</button>
+        <button class="btn" id="bRestart">⟲ RESTART</button>
         <button class="btn" id="bMode">Giro</button>
         <button class="btn rec" id="bRec"><span class="led"></span>REC</button>
       </div>
@@ -141,10 +142,12 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
   <label class="row">Camera <select id="selCam"><option value="">Camera posteriore</option></select></label>
   <label class="row">Foglio
     <select id="selSheet">
-      <option value="61">Schede 2 e 3 · 61 tasti (Do2–Do7)</option>
-      <option value="8">Scheda 1 · 8 note (Do4–Do5)</option>
+      <option value="o3">Foglio libero · 3 ottave (Do3–Do6)</option>
+      <option value="o2">Foglio libero · 2 ottave (Do4–Do6)</option>
+      <option value="o4">Foglio libero · 4 ottave (Do2–Do6)</option>
+      <option value="8">8 note (Do4–Do5), come la scheda 1</option>
     </select></label>
-  <label class="row">Leggi manopole e pulsanti dalla camera <input type="checkbox" id="cCamCtl" checked></label>
+  <label class="row">Leggi START/STOP, RESTART e SPEED dalla camera <input type="checkbox" id="cCamCtl" checked></label>
   <label class="row">Sensibilità colori <input type="range" id="rSens" min="-1" max="1" step="0.1" value="0"></label>
   <label class="row">Congela la lettura (il disegno resta com'è) <input type="checkbox" id="cFreeze"></label>
   <label class="row">Mostra i punti letti <input type="checkbox" id="cDebug"></label>
@@ -155,7 +158,7 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
     <button class="btn" id="bDemo">Demo</button>
     <button class="btn" id="bCam">Torna alla camera</button>
   </div>
-  <p class="muted" style="margin:12px 0 4px"><b>Tastiera o Makey Makey:</b> <kbd>Spazio</kbd> play/stop · <kbd>W</kbd> giro/una volta · <kbd>A</kbd> rec · <kbd>↑</kbd><kbd>↓</kbd> velocità · <kbd>←</kbd><kbd>→</kbd> trasporta · <kbd>S</kbd> scala · <kbd>1</kbd>–<kbd>5</kbd> muto colori · <kbd>6</kbd>–<kbd>9</kbd> muto percussioni</p>
+  <p class="muted" style="margin:12px 0 4px"><b>Tastiera o Makey Makey:</b> <kbd>Spazio</kbd> start/stop · <kbd>R</kbd> restart · <kbd>W</kbd> giro/una volta · <kbd>A</kbd> rec · <kbd>↑</kbd><kbd>↓</kbd> velocità · <kbd>←</kbd><kbd>→</kbd> trasporta · <kbd>S</kbd> scala · <kbd>1</kbd>–<kbd>5</kbd> muto colori · <kbd>6</kbd>–<kbd>9</kbd> muto percussioni</p>
   <form method="dialog" style="text-align:right;margin-top:10px"><button class="btn">Chiudi</button></form>
 </dialog>
 <div id="toast"></div>
@@ -174,10 +177,10 @@ var $ = function (id) { return document.getElementById(id); };
 var S = {
   playing: false, loop: true, rec: false, bpm: 90, transpose: 0, scale: 0,
   muteC: new Array(NI).fill(false), muteD: new Array(ND).fill(false),
-  volume: 0.8, sheet: '61', camCtl: true, sens: 0, freeze: false, debug: false
+  volume: 0.8, sheet: 'o3', camCtl: true, sens: 0, freeze: false, debug: false
 };
-try { var saved = JSON.parse(localStorage.getItem('lettore-maestra') || '{}'); ['volume', 'sheet', 'camCtl', 'sens'].forEach(function (k) { if (k in saved) S[k] = saved[k]; }); } catch (e) {}
-function saveTeacher() { try { localStorage.setItem('lettore-maestra', JSON.stringify({ volume: S.volume, sheet: S.sheet, camCtl: S.camCtl, sens: S.sens })); } catch (e) {} }
+try { var saved = JSON.parse(localStorage.getItem('lettore-maestra-v2') || '{}'); ['volume', 'sheet', 'camCtl', 'sens'].forEach(function (k) { if (k in saved) S[k] = saved[k]; }); } catch (e) {}
+function saveTeacher() { try { localStorage.setItem('lettore-maestra-v2', JSON.stringify({ volume: S.volume, sheet: S.sheet, camCtl: S.camCtl, sens: S.sens })); } catch (e) {} }
 
 var committed = [], pending = [];
 for (var c0 = 0; c0 < COLS; c0++) { committed.push([]); pending.push({ sig: '', n: 0, notes: [] }); }
@@ -504,16 +507,8 @@ function readControls() {
   wbPanel = whiteOf(samples);
   var pd = L.pads, res;
   res = padCovered('play', pd.play.x, pd.play.y, pd.play.r); if (res && res.changed && res.on) togglePlay();
-  res = padCovered('mode', pd.mode.x, pd.mode.y, pd.mode.r); if (res && res.changed && res.on) toggleMode();
-  res = padCovered('rec', pd.rec.x, pd.rec.y, pd.rec.r); if (res && res.changed && res.on) toggleRec();
-  L.instruments.forEach(function (ins, i) { var r2 = padCovered('mc' + i, L.muteColor.x, L.muteColor.y[i], L.muteColor.r); if (r2 && r2.changed) { S.muteC[i] = r2.on; applyMutes(); } });
-  L.drums.forEach(function (d, i) { var r3 = padCovered('md' + i, L.muteDrum.x, L.matrix.rowY(i), L.muteDrum.r); if (r3 && r3.changed) { S.muteD[i] = r3.on; applyMutes(); } });
-  var K = L.knobs, a, v;
-  a = knobAngle(K.transpose); lastKnobAngles.transpose = a;
-  if (a != null) { v = Math.round((Math.max(-135, Math.min(135, a)) + 135) / 22.5) - 6; v = stableKnob('tr', v); if (v != null) { S.transpose = v; renderUI(); } }
-  a = knobAngle(K.scale); lastKnobAngles.scale = a;
-  if (a != null) { var best = 0; L.scaleAngles.forEach(function (sa, i) { if (Math.abs(sa - a) < Math.abs(L.scaleAngles[best] - a)) best = i; }); v = stableKnob('sc', best); if (v != null) { S.scale = v; renderUI(); } }
-  a = knobAngle(K.speed); lastKnobAngles.speed = a;
+  res = padCovered('restart', pd.restart.x, pd.restart.y, pd.restart.r); if (res && res.changed && res.on) restart();
+  var a = knobAngle(L.knobs.speed), v; lastKnobAngles.speed = a;
   if (a != null) { var t = (Math.max(-135, Math.min(135, a)) + 135) / 270; v = Math.round((L.speedRange[0] + t * (L.speedRange[1] - L.speedRange[0])) / 2) * 2; v = stableKnob('sp', v); if (v != null) { S.bpm = v; renderUI(); } }
 }
 
@@ -545,7 +540,9 @@ function updateChips() {
 /* ---------------- note ---------------- */
 var WHITE = [0, 2, 4, 5, 7, 9, 11], HASBLACK = [true, true, false, true, true, true, false];
 var OCT8 = [1, 0, 0, -1, -2]; /* flauto, violino, piano, chitarra, basso nella scheda 1 */
+var RANGES = { o3: [48, 36], o2: [60, 24], o4: [36, 48] };
 function rawMidi(n) {
+  if (RANGES[S.sheet]) { var r = RANGES[S.sheet]; return r[0] + Math.max(0, Math.min(r[1], Math.floor(n.y * (r[1] + 1)))); }
   if (S.sheet == '8') {
     var idx = Math.max(0, Math.min(7, Math.floor(n.y * 8)));
     return [60, 62, 64, 65, 67, 69, 71, 72][idx] + 12 * OCT8[n.i];
@@ -679,6 +676,7 @@ function stopPlay() {
   S.playing = false; stopAt = null; clearInterval(timer); timer = null;
   if (S.rec) toggleRec(); renderUI();
 }
+function restart() { if (!S.playing) { startPlay(); return; } nextCol = 0; nextTime = AC.currentTime + .05; queue = []; stopAt = null; }
 function togglePlay() { if (S.playing) stopPlay(); else startPlay(); }
 function toggleMode() { S.loop = !S.loop; renderUI(); }
 function playheadPos() {
@@ -726,7 +724,7 @@ function drawView() {
   function poly(pts, stroke, fill, w) { vctx.beginPath(); pts.forEach(function (p, i) { var q = proj(H, p[0], p[1]); if (i) vctx.lineTo(q[0], q[1]); else vctx.moveTo(q[0], q[1]); }); vctx.closePath(); if (fill) { vctx.fillStyle = fill; vctx.fill(); } if (stroke) { vctx.strokeStyle = stroke; vctx.lineWidth = w || lw; vctx.stroke(); } }
   function rect(r, stroke, fill, w) { poly([[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], stroke, fill, w); }
   function circ(x, y, r, stroke, fill, w) { var pts = []; for (var k = 0; k < 20; k++) pts.push([x + r * Math.cos(k * Math.PI / 10), y + r * Math.sin(k * Math.PI / 10)]); poly(pts, stroke, fill, w); }
-  rect(L.read, 'rgba(255,90,31,.9)'); rect(L.matrix, 'rgba(255,90,31,.9)');
+  rect(L.read, 'rgba(255,90,31,.9)'); rect(L.matrix, 'rgba(255,90,31,.9)'); rect(L.panel, 'rgba(43,217,107,.6)');
   lastMarkers.forEach(function (pts) { vctx.beginPath(); pts.forEach(function (p, i) { if (i) vctx.lineTo(p[0], p[1]); else vctx.moveTo(p[0], p[1]); }); vctx.closePath(); vctx.strokeStyle = '#2bd96b'; vctx.lineWidth = lw * 1.5; vctx.stroke(); });
   if (S.debug) debugPts.forEach(function (p) { var q = proj(H, p[0], p[1]); vctx.fillStyle = L.instruments[p[2]].color; vctx.fillRect(q[0] - 2, q[1] - 2, 4, 4); });
   /* note lette */
@@ -735,10 +733,7 @@ function drawView() {
   var M = L.matrix, mw = M.w / 16, mh = M.h / 4;
   for (var i = 0; i < ND; i++) for (var j = 0; j < 16; j++) if (grid[i][j]) circ(M.x + (j + .5) * mw, M.y + (i + .5) * mh, 5, '#fff', null, lw);
   if (S.camCtl) {
-    var pd = L.pads;
-    [['play', pd.play], ['mode', pd.mode], ['rec', pd.rec]].forEach(function (e) { var st = padState[e[0]]; circ(e[1].x, e[1].y, e[1].r, st && st.on ? '#ff5a1f' : 'rgba(43,217,107,.9)', st && st.on ? 'rgba(255,90,31,.35)' : null, lw); });
-    L.instruments.forEach(function (ins, k) { circ(L.muteColor.x, L.muteColor.y[k], L.muteColor.r, S.muteC[k] ? '#ff5a1f' : 'rgba(43,217,107,.9)', null, lw); });
-    L.drums.forEach(function (d, k) { circ(L.muteDrum.x, M.rowY(k), L.muteDrum.r, S.muteD[k] ? '#ff5a1f' : 'rgba(43,217,107,.9)', null, lw); });
+    Object.keys(L.pads).forEach(function (key) { var p = L.pads[key], st = padState[key]; circ(p.x, p.y, p.r, st && st.on ? '#ff5a1f' : 'rgba(43,217,107,.9)', st && st.on ? 'rgba(255,90,31,.35)' : null, lw); });
     Object.keys(L.knobs).forEach(function (key) {
       var k = L.knobs[key], a = lastKnobAngles[key]; circ(k.x, k.y, k.r, 'rgba(43,217,107,.9)', null, lw);
       if (a != null) { var p = BOARD.polar(k.x, k.y, k.r, a), c0 = proj(H, k.x, k.y), c1 = proj(H, p[0], p[1]); vctx.beginPath(); vctx.moveTo(c0[0], c0[1]); vctx.lineTo(c1[0], c1[1]); vctx.strokeStyle = '#ff5a1f'; vctx.lineWidth = lw * 2; vctx.stroke(); }
@@ -764,7 +759,7 @@ function drawRoll() {
   /* note: segmenti per note tenute */
   for (var col = 0; col < COLS; col++) {
     committed[col].forEach(function (n) {
-      var m = midiOf(n), lo = S.sheet == '8' ? 36 : 30, hi = S.sheet == '8' ? 90 : 102, yy = top + sheetH - (m - lo) / (hi - lo) * sheetH;
+      var m = midiOf(n), lo = S.sheet == '8' ? 36 : S.sheet == 'o4' ? 34 : S.sheet == 'o2' ? 58 : 46, hi = S.sheet == '8' ? 90 : S.sheet == 'o4' ? 86 : S.sheet == 'o2' ? 86 : 86, yy = top + sheetH - (m - lo) / (hi - lo) * sheetH;
       c.fillStyle = L.instruments[n.i].color; c.globalAlpha = S.muteC[n.i] ? .18 : 1;
       c.fillRect(pad + col * cw, Math.max(top, Math.min(top + sheetH - 4, yy - 3)), cw + .6, 6);
     });
@@ -795,7 +790,7 @@ function buildUI() {
   L.scales.forEach(function (sc, i) { var b = document.createElement('button'); b.className = 'btn'; b.innerHTML = '<span class="sw" style="background:' + sc.color + '"></span>' + sc.name; b.onclick = function () { S.scale = i; renderUI(); }; $('scales').appendChild(b); });
   L.instruments.forEach(function (ins, i) { var b = document.createElement('button'); b.className = 'btn mute'; b.innerHTML = '<span class="sw" style="background:' + ins.color + '"></span>' + ins.name; b.onclick = function () { initAudio(); S.muteC[i] = !S.muteC[i]; applyMutes(); }; $('mutesC').appendChild(b); });
   L.drums.forEach(function (d, i) { var b = document.createElement('button'); b.className = 'btn mute'; b.textContent = d.name; b.onclick = function () { initAudio(); S.muteD[i] = !S.muteD[i]; applyMutes(); }; $('mutesD').appendChild(b); });
-  $('bPlay').onclick = togglePlay; $('bMode').onclick = toggleMode; $('bRec').onclick = toggleRec;
+  $('bPlay').onclick = togglePlay; $('bRestart').onclick = restart; $('bMode').onclick = toggleMode; $('bRec').onclick = toggleRec;
   $('rSpeed').oninput = function () { S.bpm = +this.value; renderUI(); };
   $('tDown').onclick = function () { S.transpose = Math.max(-L.transposeRange, S.transpose - 1); renderUI(); };
   $('tUp').onclick = function () { S.transpose = Math.min(L.transposeRange, S.transpose + 1); renderUI(); };
@@ -820,7 +815,7 @@ function buildUI() {
   document.addEventListener('keydown', function (e) {
     if (e.target.tagName == 'INPUT' || e.target.tagName == 'SELECT') return;
     var k = e.key, used = true;
-    if (k == ' ') togglePlay(); else if (k == 'w' || k == 'W') toggleMode(); else if (k == 'a' || k == 'A') toggleRec();
+    if (k == ' ') togglePlay(); else if (k == 'r' || k == 'R' || k == 'Enter') restart(); else if (k == 'w' || k == 'W') toggleMode(); else if (k == 'a' || k == 'A') toggleRec();
     else if (k == 'ArrowUp') { S.bpm = Math.min(L.speedRange[1], S.bpm + 5); renderUI(); }
     else if (k == 'ArrowDown') { S.bpm = Math.max(L.speedRange[0], S.bpm - 5); renderUI(); }
     else if (k == 'ArrowRight') $('tUp').onclick(); else if (k == 'ArrowLeft') $('tDown').onclick();
