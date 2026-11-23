@@ -58,6 +58,9 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
 #start p{color:var(--muted);margin:0 0 20px}
 #start .go{font-size:20px;font-weight:700;padding:16px 28px;border-radius:16px;background:var(--ink);color:var(--bg);border:0;cursor:pointer}
 #start .alt{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+#camHelp{margin-top:18px;text-align:left;background:var(--surface);border:2px solid var(--bad);border-radius:14px;padding:14px 16px;font-size:15px}
+#camHelp b{display:block;margin-bottom:6px}
+#camHelp ol{margin:6px 0 0;padding-left:20px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:90vw}
 #toast.show{opacity:1}
 </style>
@@ -72,6 +75,7 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
       <button class="btn" id="goDemo">Prova la demo senza camera</button>
       <label class="btn" style="display:inline-flex;align-items:center">Usa una foto<input type="file" accept="image/*" id="goPhoto" hidden></label>
     </div>
+    <div id="camHelp" hidden></div>
     <p class="muted" style="margin-top:18px">Serve il volume alto e il permesso per la fotocamera. Su computer puoi scegliere la camera del telefono nel pannello Maestra.</p>
   </div>
 </div>
@@ -218,14 +222,57 @@ var source = null; /* 'cam' | 'image' */
 var stillImage = null, stream = null, img = null, H = null, lastMarkers = [], mkCount = 0, mkSeen = 0;
 
 function stopStream() { if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; } }
+function inAppBrowser() {
+  var ua = navigator.userAgent || '';
+  return /Instagram|FBAN|FBAV|FB_IAB|Line\/|WhatsApp|Telegram|Snapchat|TikTok|musical_ly|LinkedInApp|GSA\/|; wv\)|Claude/i.test(ua);
+}
+function isIOS() { return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform == 'MacIntel' && navigator.maxTouchPoints > 1); }
+function camHelp(title, steps) {
+  var el = $('camHelp');
+  el.innerHTML = '<b>' + title + '</b>' + (steps && steps.length ? '<ol><li>' + steps.join('</li><li>') + '</li></ol>' : '') +
+    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="camRetry">Riprova</button><button class="btn" id="camCopy">Copia il link</button></div>';
+  el.hidden = false;
+  $('camRetry').onclick = function () { el.hidden = true; askCamera(); };
+  $('camCopy').onclick = function () { try { navigator.clipboard.writeText(location.href); toast('Link copiato'); } catch (e) { toast(location.href); } };
+  $('start').hidden = false; $('start').style.display = 'flex';
+}
+function openElsewhereSteps() {
+  return isIOS()
+    ? ['Tocca i tre puntini o il pulsante di condivisione in alto o in basso.', 'Scegli <b>Apri in Safari</b> (o "Apri nel browser").', 'Lì premi di nuovo "Accendi con la camera" e poi <b>Consenti</b>.']
+    : ['Tocca i tre puntini in alto a destra.', 'Scegli <b>Apri in Chrome</b> (o "Apri nel browser").', 'Lì premi di nuovo "Accendi con la camera" e poi <b>Consenti</b>.'];
+}
+function explainCameraError(e) {
+  var name = e && e.name || String(e || '');
+  if (!window.isSecureContext) return camHelp('La pagina non è sicura (manca https), quindi il telefono non può dare la camera.', ['Apri il link che inizia con <b>https://</b>: https://tobiaseu.github.io/lettore-disegni/']);
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return camHelp('Questo browser non può usare la camera.', inAppBrowser() ? openElsewhereSteps() : ['Apri il link con Safari (iPhone) o Chrome (Android).']);
+  if (name == 'NotAllowedError' || name == 'SecurityError' || name == 'PermissionDeniedError') {
+    if (inAppBrowser()) return camHelp('Stai usando il browser interno di un\'app, che blocca la camera.', openElsewhereSteps());
+    return camHelp('Il permesso per la camera è bloccato per questa pagina.', isIOS()
+      ? ['Tocca <b>aA</b> (o l\'icona a sinistra dell\'indirizzo) in Safari.', 'Scegli <b>Impostazioni sito web</b> → <b>Fotocamera</b> → <b>Consenti</b> (o Chiedi).', 'Se non c\'è: Impostazioni dell\'iPhone → Safari → Fotocamera → Chiedi.', 'Torna qui e premi <b>Riprova</b>.']
+      : ['Tocca il lucchetto o l\'icona a sinistra dell\'indirizzo in Chrome.', 'Apri <b>Autorizzazioni</b> → <b>Fotocamera</b> → <b>Consenti</b> (o "Reimposta autorizzazioni").', 'Se è ancora bloccata: Impostazioni del telefono → App → Chrome → Autorizzazioni → Fotocamera → Consenti.', 'Torna qui e premi <b>Riprova</b>.']);
+  }
+  if (name == 'NotReadableError' || name == 'TrackStartError' || name == 'AbortError') return camHelp('La camera è già usata da un\'altra app.', ['Chiudi le altre app che usano la camera (videochiamate, fotocamera).', 'Premi <b>Riprova</b>.']);
+  if (name == 'NotFoundError' || name == 'DevicesNotFoundError') return camHelp('Non trovo nessuna camera.', ['Sul computer collega il telefono come webcam (Continuity Camera, Collegamento al telefono, DroidCam o Iriun).', 'Premi <b>Riprova</b>.']);
+  return camHelp('La camera non è partita (' + name + ').', ['Premi <b>Riprova</b>.', 'Se non va, apri la pagina in Safari (iPhone) o Chrome (Android).']);
+}
+function askCamera() {
+  initAudio(); wake();
+  startCamera().then(function () { $('camHelp').hidden = true; hideStart(); }).catch(explainCameraError);
+}
 function startCamera(deviceId) {
   stopStream();
-  var cons = { audio: false, video: deviceId ? { deviceId: { exact: deviceId }, width: { ideal: 1440 }, height: { ideal: 1080 } } : { facingMode: { ideal: 'environment' }, width: { ideal: 1440 }, height: { ideal: 1080 } } };
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Questo browser non dà accesso alla camera. Serve una pagina https.'); return Promise.reject(); }
-  return navigator.mediaDevices.getUserMedia(cons).then(function (st) {
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('unsupported'));
+  var size = { width: { ideal: 1440 }, height: { ideal: 1080 } };
+  var v1 = deviceId ? Object.assign({ deviceId: { exact: deviceId } }, size) : Object.assign({ facingMode: { ideal: 'environment' } }, size);
+  function open(v) { return navigator.mediaDevices.getUserMedia({ audio: false, video: v }); }
+  return open(v1).catch(function (e) {
+    /* alcuni telefoni rifiutano le risoluzioni richieste: riprovo con le impostazioni base */
+    if (e && (e.name == 'OverconstrainedError' || e.name == 'ConstraintNotSatisfiedError' || e.name == 'TypeError')) return open(deviceId ? { deviceId: deviceId } : { facingMode: 'environment' }).catch(function () { return open(true); });
+    throw e;
+  }).then(function (st) {
     stream = st; video.srcObject = st; source = 'cam'; H = null;
-    return video.play().then(function () { listCameras(); checkTorch(); });
-  }).catch(function (e) { toast('Camera non disponibile: ' + (e && e.name || e)); throw e; });
+    return video.play().catch(function () {}).then(function () { listCameras(); checkTorch(); });
+  });
 }
 function listCameras() {
   if (!navigator.mediaDevices.enumerateDevices) return;
@@ -761,12 +808,13 @@ function buildUI() {
   $('cFreeze').onchange = function () { S.freeze = this.checked; };
   $('cDebug').onchange = function () { S.debug = this.checked; debugPts = []; };
   $('cTorch').onchange = function () { var tr = stream && stream.getVideoTracks()[0]; if (tr) tr.applyConstraints({ advanced: [{ torch: this.checked }] }).catch(function () { toast('Torcia non disponibile'); }); };
-  $('selCam').onchange = function () { startCamera(this.value).catch(function () {}); };
+  $('selCam').onchange = function () { startCamera(this.value).catch(function (e) { $('teacher').close(); explainCameraError(e); }); };
   $('filePhoto').onchange = function () { if (this.files[0]) { loadPhoto(this.files[0]); $('teacher').close(); } };
   $('bCal').onclick = function () { padState = {}; knobState = {}; toast('Pulsanti ricalibrati: tieni le mani lontane per un secondo'); };
   $('bDemo').onclick = function () { loadDemo(); $('teacher').close(); };
-  $('bCam').onclick = function () { startCamera($('selCam').value).catch(function () {}); $('teacher').close(); };
-  $('goCam').onclick = function () { initAudio(); wake(); startCamera().then(hideStart).catch(function () {}); };
+  $('bCam').onclick = function () { $('teacher').close(); startCamera($('selCam').value).catch(explainCameraError); };
+  $('goCam').onclick = askCamera;
+  if (inAppBrowser()) camHelp('Questa pagina è aperta dentro un\'app: la camera di solito è bloccata.', openElsewhereSteps());
   $('goDemo').onclick = function () { initAudio(); loadDemo(); hideStart(); };
   $('goPhoto').onchange = function () { if (this.files[0]) { initAudio(); loadPhoto(this.files[0]); hideStart(); } };
   document.addEventListener('keydown', function (e) {
