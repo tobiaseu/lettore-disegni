@@ -15,6 +15,13 @@ Colonna comandi 70 × 325 a sinistra, foglio A4 orizzontale 297 × 210 in alto a
 ## Regole
 Altezza = nota (di base 3 ottave Do3–Do6, scala pentatonica; si cambia dal computer). Colore = strumento: nero basso, blu piano, rosso chitarra, giallo violino, verde flauto. Matrice: charleston, battimani, rullante, cassa.
 
+## Prova veloce: foglio + striscia simboli (senza base né marker)
+Il programma trova da solo il foglio A4 bianco e, se c'è, una striscia di carta con la griglia 4 × 16 disegnata a mano.
+- La prima casella di ogni riga è la legenda e non suona: il simbolo lì dice il suono della riga (cerchio = cassa, triangolo = battimani, rombo = charleston, rettangolo = rullante).
+- Ogni simbolo nero nella griglia suona il suono della sua riga. Il tempo parte dal lato della legenda, insieme al foglio.
+- Sul foglio, una linea continua storta suona come un glissando (l'altezza scivola senza fermarsi sui tasti). Punti, trattini e linee piatte suonano come prima.
+- Funziona meglio su un fondo più scuro della carta e opaco (cartone, legno). Su un tavolo chiaro e lucido trova lo stesso la striscia dai bordi, ma serve più luce uniforme.
+
 ## Comandi
 Sulla base: START · STOP e RESTART (dito sul cerchio), SPEED (disco girevole con pallino nero). Sul computer: volume, giro/una volta, REC, trasporta, scala, muto. Tastiera o Makey Makey: Spazio start/stop, R restart, frecce su/giù velocità.
 
