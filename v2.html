@@ -321,6 +321,7 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
         <h3>Camera e sorgente</h3>
         <label class="row">Camera <select id="selCam" class="btn"><option value="">Camera posteriore</option></select></label>
         <label class="row" id="rowTorch" hidden>Torcia del telefono <input type="checkbox" id="cTorch"></label>
+        <label class="row" id="rowZoom" hidden><span>Zoom <b id="vZoom">1×</b><br><span class="muted" id="zoomHint"></span></span><input type="range" id="rZoom" min="1" max="2" step="0.1" value="1" aria-label="Zoom della camera"></label>
         <label class="row">Usa una foto <input type="file" accept="image/*" id="filePhoto"></label>
         <div class="group" style="padding-top:8px"><button class="btn" id="bCam">Accendi la camera</button><button class="btn" id="bDemo">Demo</button></div>
       </div>
@@ -501,19 +502,36 @@ function startCamera(deviceId) {
     return video.play().catch(function () {}).then(function () { listCameras(); checkTorch(); });
   });
 }
+var WIDE_RE = /ultra ?wide|ultra-wide|ultragrandangol|grandangol|0[.,]5\s?x|desk view/i, autoWideDone = false, userPickedCam = false;
 function listCameras() {
   if (!navigator.mediaDevices.enumerateDevices) return;
   navigator.mediaDevices.enumerateDevices().then(function (ds) {
-    var sel = $('selCam'), cur = stream && stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId;
+    var sel = $('selCam'), cur = stream && stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId, wide = null, curLabel = '';
     sel.innerHTML = '';
     ds.filter(function (d) { return d.kind == 'videoinput'; }).forEach(function (d, i) {
-      var o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || ('Camera ' + (i + 1)); if (d.deviceId == cur) o.selected = true; sel.appendChild(o);
+      var isWide = WIDE_RE.test(d.label) && !/desk view/i.test(d.label);
+      var o = document.createElement('option'); o.value = d.deviceId; o.textContent = (d.label || ('Camera ' + (i + 1))) + (isWide ? '  · grandangolo' : ''); if (d.deviceId == cur) { o.selected = true; curLabel = d.label; } sel.appendChild(o);
+      if (isWide && /back|posterior|rear|retro/i.test(d.label + ' back') && !wide) wide = d;
     });
+    /* la prima volta passo da solo al grandangolo, se il browser lo mostra come camera separata */
+    if (!autoWideDone && !userPickedCam && wide && wide.deviceId != cur && !WIDE_RE.test(curLabel)) {
+      autoWideDone = true;
+      startCamera(wide.deviceId).then(function () { toast('Uso il grandangolo: ' + wide.label); }).catch(function () {});
+    }
   });
 }
 function checkTorch() {
-  var tr = stream && stream.getVideoTracks()[0], caps = tr && tr.getCapabilities ? tr.getCapabilities() : {};
+  var tr = stream && stream.getVideoTracks()[0], caps = tr && tr.getCapabilities ? tr.getCapabilities() : {}, set = tr && tr.getSettings ? tr.getSettings() : {};
   $('rowTorch').hidden = !caps.torch;
+  /* zoom: su molti Android lo zoom sotto 1 passa al grandangolo */
+  var z = caps.zoom, r = $('rZoom');
+  $('rowZoom').hidden = !z;
+  if (z) { r.min = z.min; r.max = Math.min(z.max, Math.max(z.min * 4, 2)); r.step = z.step || .1; r.value = set.zoom || 1; $('vZoom').textContent = (+r.value).toFixed(1) + '×'; $('zoomHint').textContent = z.min < 1 ? 'sotto 1× = grandangolo' : 'questo telefono non scende sotto 1×'; }
+}
+function setZoom(v) {
+  var tr = stream && stream.getVideoTracks()[0]; if (!tr) return;
+  $('vZoom').textContent = (+v).toFixed(1) + '×';
+  tr.applyConstraints({ advanced: [{ zoom: +v }] }).catch(function () { toast('Zoom non disponibile'); });
 }
 function useImage(im) { stopStream(); stillImage = im; source = 'image'; H = null; findSheet(); lastDetect = 0; }
 function loadPhoto(file) {
@@ -1723,7 +1741,8 @@ function buildUI() {
   $('cFreeze').onchange = function () { S.freeze = this.checked; logEvent(S.freeze ? 'lettura congelata' : 'lettura ripresa'); };
   $('cTorch').onchange = function () { var tr = stream && stream.getVideoTracks()[0]; if (tr) tr.applyConstraints({ advanced: [{ torch: this.checked }] }).catch(function () { toast('Torcia non disponibile'); }); };
   $('selCam').onfocus = listCamerasSafe;
-  $('selCam').onchange = function () { startCamera(this.value).then(function () { srcLabel = ''; hideStart(); }).catch(explainCameraError); };
+  $('rZoom').oninput = function () { setZoom(this.value); };
+  $('selCam').onchange = function () { userPickedCam = true; startCamera(this.value).then(function () { srcLabel = ''; hideStart(); }).catch(explainCameraError); };
   $('filePhoto').onchange = function () { if (this.files[0]) { initAudioSafe(); loadPhoto(this.files[0]); srcLabel = this.files[0].name; hideStart(); } };
   $('bCal').onclick = function () { padState = {}; knobState = {}; railState = {}; toast('Pulsanti ricalibrati: tieni le mani lontane per un secondo'); };
   $('bDemo').onclick = function () { initAudioSafe(); loadDemo(); hideStart(); };
