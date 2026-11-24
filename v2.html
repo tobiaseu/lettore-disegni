@@ -1500,7 +1500,10 @@ var RANGES = { o3: [48, 36], o2: [60, 24], o4: [36, 48] };
 var INST_BASE = { flute: 60, violin: 60, piano: 48, guitar: 48, bass: 24 };
 function rangeOf(n) { return S.sheet == 'inst' ? [INST_BASE[L.instruments[n.i].key], 36] : RANGES[S.sheet]; }
 function rawMidi(n) {
-  var r = rangeOf(n); if (r) return r[0] + Math.max(0, Math.min(r[1], Math.floor(n.y * (r[1] + 1))));
+  var r = rangeOf(n);
+  if (r && L.scales[S.scale].name == 'Sole') { /* Sole = pentatonica di Do (Do Re Mi Sol La): il foglio è diviso in fasce uguali, una per nota della scala */
+    var pn = scaleNotes(r[0], r[0] + r[1], L.scales[S.scale].steps); return pn[Math.max(0, Math.min(pn.length - 1, Math.floor(n.y * pn.length)))]; }
+  if (r) return r[0] + Math.max(0, Math.min(r[1], Math.floor(n.y * (r[1] + 1))));
   if (S.sheet == '8') {
     var idx = Math.max(0, Math.min(7, Math.floor(n.y * 8)));
     return [60, 62, 64, 65, 67, 69, 71, 72][idx] + 12 * OCT8[n.i];
@@ -1511,6 +1514,8 @@ function rawMidi(n) {
   else if (fr < 0.32 && wi > 0 && HASBLACK[(wi - 1) % 7]) m -= 1;
   return m;
 }
+var SCN = {};
+function scaleNotes(lo, hi, st) { var k = lo + ':' + hi + ':' + st, out = SCN[k]; if (out) return out; out = []; for (var m = lo; m <= hi; m++) if (st.indexOf(m % 12) >= 0) out.push(m); return SCN[k] = out; }
 function snap(m) {
   var st = L.scales[S.scale].steps;
   for (var d = 0; d < 7; d++) {
