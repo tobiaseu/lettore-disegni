@@ -7,9 +7,20 @@ La fotocamera del telefono (o di un computer che usa il telefono come webcam) gu
 - **App v1**: https://tobiaseu.github.io/lettore-disegni/
 - **App v2 · interfaccia del workshop**: https://tobiaseu.github.io/lettore-disegni/v2.html (misure in [layout-v2.js](layout-v2.js))
 - **App v3 · nuova versione**: https://tobiaseu.github.io/lettore-disegni/v3.html (parte dalla v2, stesse misure in [layout-v2.js](layout-v2.js))
+- **App v4 · fogli A5 sul tappetino verde**: https://tobiaseu.github.io/lettore-disegni/v4.html (misure in [layout-v4.js](layout-v4.js))
 - **Modello da stampare (A3, al 100%)**: [modello-A3.pdf](modello-A3.pdf) · sorgente [modello.html](modello.html)
 - **Cosa legge la camera**: [schema.html](https://tobiaseu.github.io/lettore-disegni/schema.html)
 - **Misure della base**: tutte in [layout.js](layout.js). Se cambi una misura, ristampa il modello.
+
+## Versione 4 (fogli A5 sul tappetino verde)
+
+Niente base in cartone e niente marker: sul tappetino da taglio verde (A4 in verticale) la matrice sta sopra e il foglio A5 orizzontale sotto. La camera trova i due fogli dai bordi bianchi sul verde, anche se sono un po' storti o tagliati a mano.
+
+- Foglio A5 210 × 148 mm, letto 202 × 140 (4 mm di margine).
+- Matrice 210 × 52,5 mm (4:1, 16 × 4 caselle quadrate da 13,1 mm): la matrice stampata della v2 stampata al 71%. Una matrice fatta a mano un po' più alta va bene lo stesso.
+- Verso della matrice e allineamento fine delle caselle dalle forme piene (cerchio, triangolo in su, rombo, rettangolo), quindi anche con bordi letti con 1–2 mm di errore.
+- Sfondi chiari (quaderno a quadretti, tavolo bianco): il bordo della carta è dove finisce la parte più chiara tra carta e sfondo.
+- I comandi (START · STOP, RESTART, SPEED, muti) sono sullo schermo, in una colonna accanto al tappetino nel gemello.
 
 ## Versione 2 (workshop)
 Pagina separata [v2.html](v2.html). A sinistra la visione del computer (camera, zone lette, dati tecnici, registro eventi), a destra il prototipo in cartone interattivo, sotto le funzioni del prototipo e le funzioni secondarie.
