@@ -6,6 +6,7 @@ La fotocamera del telefono (o di un computer che usa il telefono come webcam) gu
 
 - **App v1**: https://tobiaseu.github.io/lettore-disegni/
 - **App v2 · interfaccia del workshop**: https://tobiaseu.github.io/lettore-disegni/v2.html (misure in [layout-v2.js](layout-v2.js))
+- **App v3 · nuova versione**: https://tobiaseu.github.io/lettore-disegni/v3.html (parte dalla v2, stesse misure in [layout-v2.js](layout-v2.js))
 - **Modello da stampare (A3, al 100%)**: [modello-A3.pdf](modello-A3.pdf) · sorgente [modello.html](modello.html)
 - **Cosa legge la camera**: [schema.html](https://tobiaseu.github.io/lettore-disegni/schema.html)
 - **Misure della base**: tutte in [layout.js](layout.js). Se cambi una misura, ristampa il modello.
