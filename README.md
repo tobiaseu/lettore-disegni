@@ -24,8 +24,9 @@ Colonna comandi 70 × 325 a sinistra, foglio A4 orizzontale 297 × 210 in alto a
 ## Regole
 Altezza = nota (di base 3 ottave Do3–Do6, scala pentatonica; si cambia dal computer). Colore = strumento: nero basso, blu piano, rosso chitarra, giallo violino, verde flauto. Matrice, righe dall'alto: cassa (cerchio), battimani (triangolo), charleston (rombo), rullante (rettangolo).
 
-## Prova veloce: foglio + striscia simboli (senza base né marker)
-Il programma trova da solo il foglio A4 bianco e, se c'è, una striscia di carta con la griglia 4 × 16 disegnata a mano.
+## Prova veloce: foglio A4 + matrice (senza base né marker)
+Il programma trova da solo il foglio A4 e la matrice dai loro bordi (retta su 28 punti per lato, a piena risoluzione). Il foglio A4 viene letto come 297 × 210. La matrice stampata si riconosce dalle proporzioni 4:1 (297 × 74,25) ed è divisa esattamente in 16 × 4 dai suoi bordi; dal modello si prende solo il verso (dritta o capovolta). Nella v2 ci sono tre pulsanti: Cerca tutti e due, Solo A4, Solo matrice. Se uno dei due è già agganciato si può ricercare solo l'altro, e ciascuno suona anche da solo.
+Vale ancora anche la striscia disegnata a mano con la griglia 4 × 16 e la legenda:
 - La prima casella di ogni riga è la legenda e non suona: il simbolo lì dice il suono della riga (cerchio = cassa, triangolo = battimani, rombo = charleston, rettangolo = rullante).
 - Ogni simbolo nero nella griglia suona il suono della sua riga. Il tempo parte dal lato della legenda, insieme al foglio.
 - Sul foglio, una linea continua storta suona come un glissando (l'altezza scivola senza fermarsi sui tasti). Punti, trattini e linee piatte suonano come prima.

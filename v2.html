@@ -208,10 +208,12 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
     <div class="tbar">
       <select id="selMode" class="tsel" aria-label="Cosa deve cercare la camera">
         <option value="board">Base in cartone con 4 marker</option>
-        <option value="sheet">Solo foglio + striscia simboli (senza base)</option>
+        <option value="sheet">Foglio A4 + matrice (senza base)</option>
       </select>
       <span id="sheetTools" class="group" style="gap:6px">
-        <button class="tbtn" id="bFind">Ritrova</button>
+        <button class="tbtn" id="bFind" title="Cerca di nuovo il foglio A4 e la matrice">Cerca tutti e due</button>
+        <button class="tbtn" id="bFindSheet" title="Cerca di nuovo solo il foglio A4, la matrice resta">Solo A4</button>
+        <button class="tbtn" id="bFindStrip" title="Cerca di nuovo solo la matrice, il foglio A4 resta">Solo matrice</button>
         <button class="tbtn" id="bCorners">Angoli a mano</button>
         <button class="tbtn" id="bRot">Ruota 180°</button>
       </span>
@@ -802,7 +804,9 @@ function detectSheet() {
   });
   lastShapes = shapes.map(function (q) { return { size: q.size, aspect: +q.aspect.toFixed(2), fill: +q.fill.toFixed(2), th: q.th }; });
   shapes = shapes.filter(function (q) { return q.fill > 0.75 && q.fill < 1.3; }).sort(function (a, b) { return b.size - a.size; });
-  var stripQ = shapes.filter(function (q) { return q.aspect > 2.2 && q.aspect < 7; })[0];
+  /* la matrice è una striscia 297 x 74,25 (4:1): tra le zone bianche allungate preferisco quella più vicina a 4:1 */
+  var longQ = shapes.filter(function (q) { return q.aspect > 2.2 && q.aspect < 7 && q.size > n * .01; });
+  var stripQ = longQ.filter(function (q) { return q.aspect > 3.3 && q.aspect < 4.8; })[0] || longQ[0];
   /* un pezzo della striscia non è il foglio: scarto i candidati il cui centro cade dentro la striscia */
   function inside(c, pt) { var xs = c.map(function (p) { return p[0]; }), ys = c.map(function (p) { return p[1]; }); return pt[0] > Math.min.apply(null, xs) && pt[0] < Math.max.apply(null, xs) && pt[1] > Math.min.apply(null, ys) && pt[1] < Math.max.apply(null, ys); }
   function ctr(c) { return [(c[0][0] + c[2][0]) / 2, (c[0][1] + c[2][1]) / 2]; }
@@ -810,12 +814,67 @@ function detectSheet() {
   stripFound = stripQ ? stripQ.c : null;
   return sheetQ ? sheetQ.c : null;
 }
+/* bordi precisi: per ogni lato cerco il salto carta -> sfondo a piena risoluzione in 28 punti,
+   ci faccio passare una retta (scartando i punti storti, es. un dito sul bordo) e gli angoli sono gli incroci */
+function lumAt(x, y) {
+  var W = img.width, x0 = Math.floor(x), y0 = Math.floor(y); if (x0 < 0 || y0 < 0 || x0 >= W - 1 || y0 >= img.height - 1) return null;
+  var fx = x - x0, fy = y - y0, d = img.data, i = (y0 * W + x0) * 4, j = i + W * 4;
+  function L(k) { return d[k] * .3 + d[k + 1] * .59 + d[k + 2] * .11; }
+  return (L(i) * (1 - fx) + L(i + 4) * fx) * (1 - fy) + (L(j) * (1 - fx) + L(j + 4) * fx) * fy;
+}
+function quadAspect(c) { var dd = function (a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }; return (dd(c[0], c[1]) + dd(c[3], c[2])) / Math.max(1, dd(c[0], c[3]) + dd(c[1], c[2])); }
+function fitLine(P) {
+  var mx = 0, my = 0, i; P.forEach(function (p) { mx += p[0]; my += p[1]; }); mx /= P.length; my /= P.length;
+  var sxx = 0, syy = 0, sxy = 0; P.forEach(function (p) { var dx = p[0] - mx, dy = p[1] - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; });
+  var a = .5 * Math.atan2(2 * sxy, sxx - syy); return { x: mx, y: my, dx: Math.cos(a), dy: Math.sin(a) };
+}
+function refineQuad(c) {
+  if (!c || !img) return c;
+  var cx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, cy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4, lines = [], ok = 0;
+  for (var e = 0; e < 4; e++) {
+    var a = c[e], b = c[(e + 1) % 4], len = Math.hypot(b[0] - a[0], b[1] - a[1]), tx = (b[0] - a[0]) / len, ty = (b[1] - a[1]) / len, nx = -ty, ny = tx;
+    if ((a[0] + b[0]) / 2 * 0 + ((a[0] + b[0]) / 2 - cx) * nx + ((a[1] + b[1]) / 2 - cy) * ny < 0) { nx = -nx; ny = -ny; } /* normale verso fuori */
+    var R = Math.max(6, Math.min(24, len * .025)), pts = [];
+    for (var t = 1; t <= 28; t++) {
+      var f = .06 + .88 * (t - 1) / 27, px = a[0] + (b[0] - a[0]) * f, py = a[1] + (b[1] - a[1]) * f, best = 0, bs = null, prof = [];
+      for (var s2 = -R - 2; s2 <= R + 2; s2++) prof.push(lumAt(px + nx * s2, py + ny * s2));
+      /* un bordo vero resta scuro fuori per vari pixel (una riga a matita invece torna chiara):
+         tra i salti che restano scuri prendo il più esterno tra quelli forti */
+      var cands = [];
+      for (var k = 2; k < prof.length - 6; k++) {
+        if (prof[k - 2] == null || prof[k + 6] == null) continue; var gdrop = prof[k - 2] - prof[k + 2];
+        var outside = (prof[k + 3] + prof[k + 4] + prof[k + 5] + prof[k + 6]) / 4;
+        if (gdrop > 14 && outside < prof[k - 2] - gdrop * .6) cands.push([k, gdrop]);
+        if (gdrop > best) best = gdrop;
+      }
+      cands = cands.filter(function (q) { return q[1] > best * .6; });
+      if (cands.length) { bs = cands[cands.length - 1][0]; best = cands[cands.length - 1][1]; } else best = 0;
+      if (bs != null && best > 14) pts.push([px + nx * (bs - R - 2), py + ny * (bs - R - 2)]);
+    }
+    if (pts.length < 10) { lines.push(null); continue; }
+    var Lf = fitLine(pts);
+    for (var it = 0; it < 2; it++) { var keep = pts.filter(function (p) { return Math.abs((p[0] - Lf.x) * -Lf.dy + (p[1] - Lf.y) * Lf.dx) < 2; }); if (keep.length >= 8) Lf = fitLine(keep); }
+    lines.push(Lf); ok++;
+  }
+  if (ok < 4) return c;
+  var out = [];
+  for (var v = 0; v < 4; v++) {
+    var L1 = lines[(v + 3) % 4], L2 = lines[v], den = L1.dx * L2.dy - L1.dy * L2.dx;
+    if (Math.abs(den) < 1e-6) return c;
+    var t1 = ((L2.x - L1.x) * L2.dy - (L2.y - L1.y) * L2.dx) / den, p = [L1.x + L1.dx * t1, L1.y + L1.dy * t1];
+    if (Math.hypot(p[0] - c[v][0], p[1] - c[v][1]) > frame.width / 25) return c; /* troppo lontano: tengo quello di prima */
+    out.push(p);
+  }
+  return out;
+}
 function orient(c) { return rot180 ? [c[2], c[3], c[0], c[1]] : c; }
 function setSheetH(c) {
   var S0 = L.sheet; sheetCorners = c;
   H = homography([[S0.x, S0.y], [S0.x + S0.w, S0.y], [S0.x + S0.w, S0.y + S0.h], [S0.x, S0.y + S0.h]], orient(c));
   mkSeen = performance.now();
 }
+function findSheetOnly() { sheetLock = false; sheetCand = null; sheetCandN = 0; H = null; sheetCorners = null; lastDetect = 0; committed.forEach(function (c, i) { committed[i] = []; }); }
+function findStripOnly() { strip = null; MX = null; stripCand = null; stripCandN = 0; lastStripTry = 0; for (var i = 0; i < ND; i++) grid[i].fill(false); }
 function findSheet() { sheetLock = false; sheetCand = null; sheetCandN = 0; H = null; sheetCorners = null; strip = null; stripCand = null; stripCandN = 0; for (var i = 0; i < ND; i++) grid[i].fill(false); }
 
 /* ---------------- matrice a simboli (striscia 4 x 16 con intestazione) ---------------- */
@@ -929,12 +988,18 @@ function setupStrip(c) {
   /* proporzioni della carta: la striscia stampata è 297 x 74,25 (4:1), quella disegnata a mano di solito più corta */
   var dd = function (a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }, asp = (dd(c[0], c[1]) + dd(c[3], c[2])) / Math.max(1, dd(c[0], c[3]) + dd(c[1], c[2]));
   r.aspect = asp;
-  if (r.ratio > 2.2 || (r.ratio > 1.5 && asp > 3.6 && asp < 4.6)) {
-    if (r.flip) { c = [c[2], c[3], c[0], c[1]]; Hs = homography(src, c); G2 = sampleStrip(Hs); mxNormalize(G2); r = tplRegister(mxInk, [false], 6, { dx: r.dx, dy: r.dy, sy: r.sy }); }
-    MX = null; strip = { c: c, H: Hs, g: tplGrid(r), header: [], tpl: true };
-    tplInit(r); readStrip();
-    toast('Matrice stampata trovata · ' + (r.ratio > 3 ? 'aggancio sicuro' : 'aggancio ok'));
-    logEvent('matrice stampata agganciata · spostamento ' + r.dx + ',' + r.dy + ' px · altezza ×' + r.sy + ' · contrasto ' + r.ratio.toFixed(1));
+  /* proporzioni 4:1 = matrice stampata (le strisce a mano con la legenda stanno sotto 3,5:1) */
+  if (r.ratio > 2.2 || (r.ratio > 1.15 && asp > 3.7 && asp < 4.4)) {
+    /* la griglia è legata ai bordi della carta: 297 x 74,25 diviso esattamente in 16 x 4.
+       Dal modello prendo solo il verso (striscia capovolta o no) */
+    var ink0 = mxInk, full0 = tplFilled(ink0, 0, 0, 1, false), full1 = tplFilled(ink0, 0, 0, 1, true), regI = tplRegInk(ink0);
+    var sN = tplScore(regI, 0, 0, 1, false, false, full0), sF = tplScore(regI, 0, 0, 1, true, false, full1), flip = sF > sN;
+    if (flip) { c = [c[2], c[3], c[0], c[1]]; Hs = homography(src, c); }
+    var rr = { dx: 0, dy: 0, sy: 1, s: Math.max(sN, sF), ratio: r.ratio, strict: true };
+    MX = null; strip = { c: c, H: Hs, g: tplGrid(rr), header: [], tpl: true, aspect: asp, flipped: flip, conf: Math.max(sN, sF) / Math.max(.004, Math.min(sN, sF)) };
+    tplInit(rr); readStrip();
+    toast('Matrice trovata dai bordi · ' + (flip ? 'era capovolta, la giro io' : 'dritta'));
+    logEvent('matrice agganciata ai bordi · proporzioni ' + asp.toFixed(2) + ' (modello 4,00) · ' + (flip ? 'capovolta' : 'dritta') + ' · sicurezza del verso ' + strip.conf.toFixed(2));
     return;
   }
   var g = stripGeometry(G);
@@ -1260,7 +1325,7 @@ function tplTrack(G) {
   var r = tplRegister(mxInk, [false], 4, MX.reg), cur = tplScore(tplInkR, MX.reg.dx, MX.reg.dy, MX.reg.sy, false, false, tplFilled(mxInk, MX.reg.dx, MX.reg.dy, MX.reg.sy, false));
   if ((r.dx != MX.reg.dx || r.dy != MX.reg.dy) && r.s > cur * 1.08) tplInit(r);
 }
-function readStrip() { var G = sampleStrip(strip.H); if (MX && MX.tpl) tplTrack(G); mxRead(G); }
+function readStrip() { mxRead(sampleStrip(strip.H)); } /* foglio e matrice legati ai bordi: niente scivolamenti */
 
 function stripPt(u, v) { return proj(strip.H, u, v); }
 
@@ -1275,7 +1340,7 @@ function readLoop() {
         if (c) {
           var near = sheetCand && c.every(function (p, k) { return Math.hypot(p[0] - sheetCand[k][0], p[1] - sheetCand[k][1]) < frame.width / 80; });
           if (near) sheetCandN++; else { sheetCand = c; sheetCandN = 1; }
-          if (sheetCandN >= (source == 'image' ? 1 : 3)) { setSheetH(c); sheetLock = true; toast('Foglio trovato: ora lo leggo'); }
+          if (sheetCandN >= (source == 'image' ? 1 : 3)) { setSheetH(refineQuad(c)); sheetLock = true; toast('Foglio A4 trovato dai bordi: ora lo leggo'); logEvent('foglio A4 agganciato ai bordi · proporzioni ' + quadAspect(sheetCorners).toFixed(2) + ' (A4 1,41)'); }
         } else sheetCandN = 0;
       }
       /* la matrice si cerca finché non è trovata, anche dopo il foglio */
@@ -1285,7 +1350,7 @@ function readLoop() {
         if (stripFound) {
           var nearS = stripCand && stripFound.every(function (p, k) { return Math.hypot(p[0] - stripCand[k][0], p[1] - stripCand[k][1]) < frame.width / 80; });
           if (nearS) stripCandN++; else { stripCand = stripFound; stripCandN = 1; }
-          if (stripCandN >= (source == 'image' ? 1 : 2)) setupStrip(stripFound);
+          if (stripCandN >= (source == 'image' ? 1 : 2)) setupStrip(refineQuad(stripFound));
         } else stripCandN = 0;
       }
       /* striscia già agganciata: ogni 1,5 s controllo che non sia stata spostata (2 controlli di fila) */
@@ -1297,7 +1362,7 @@ function readLoop() {
           var area = function (q) { var a = 0; for (var i = 0; i < 4; i++) { var p1 = q[i], p2 = q[(i + 1) % 4]; a += p1[0] * p2[1] - p2[0] * p1[1]; } return Math.abs(a / 2); };
           var ar = area(stripFound) / Math.max(1, area(strip.c));
           stripMoveN = moved && ar > .85 && ar < 1.18 ? stripMoveN + 1 : 0;
-          if (stripMoveN >= 2) { stripMoveN = 0; setupStrip(stripFound); logEvent('matrice spostata: riagganciata'); }
+          if (stripMoveN >= 2) { stripMoveN = 0; setupStrip(refineQuad(stripFound)); logEvent('matrice spostata: riagganciata'); }
         }
       }
       if (H) readSheet();
@@ -1316,8 +1381,8 @@ function readLoop() {
 }
 function updateChips() {
   if (S.mode == 'sheet') {
-    var cs = $('chipMk'); cs.className = 'chip ' + (H ? 'ok' : 'bad');
-    cs.lastChild.textContent = H ? 'foglio trovato' : manualPts ? 'segna gli angoli' : 'cerco il foglio';
+    var cs = $('chipMk'); cs.className = 'chip ' + (H && strip ? 'ok' : H || strip ? 'warn' : 'bad');
+    cs.lastChild.textContent = manualPts ? 'segna gli angoli' : 'A4 ' + (H ? '✓' : '…') + ' · matrice ' + (strip ? '✓' : '…');
   } else {
   var ok = H && performance.now() - mkSeen < 3000;
   var c = $('chipMk'); c.className = 'chip ' + (mkCount >= 4 ? 'ok' : mkCount >= 2 ? 'warn' : ok ? 'warn' : 'bad');
@@ -1642,6 +1707,11 @@ function drawMatrixOverlay(Hm) {
   }
   if (ph != null) { var kk = Math.min(15, Math.floor(ph / 4)), u = g.us[kk] + (ph / 4 - kk) * (g.us[kk + 1] - g.us[kk]); quad(u - 3, u + 3, g.vs[0], g.vs[4], null, 'rgba(255,220,60,.6)'); }
 }
+function tag(msg) { /* avviso piccolo in alto: non copre quello che è già stato trovato */
+  var fs = Math.round(view.width / 55); vctx.font = '600 ' + fs + 'px ui-monospace,Menlo,monospace';
+  var w = vctx.measureText(msg).width + fs * 1.4; vctx.fillStyle = 'rgba(8,10,13,.75)'; vctx.fillRect(view.width / 2 - w / 2, fs * .6, w, fs * 1.9);
+  vctx.fillStyle = '#e7ebf0'; vctx.textAlign = 'center'; vctx.fillText(msg, view.width / 2, fs * 1.95); vctx.textAlign = 'left';
+}
 function banner(msg) {
   vctx.fillStyle = 'rgba(8,10,13,.72)'; vctx.fillRect(0, view.height / 2 - 34, view.width, 68);
   vctx.fillStyle = '#e7ebf0'; vctx.font = '600 ' + Math.round(view.width / 38) + 'px ui-monospace,Menlo,monospace'; vctx.textAlign = 'center';
@@ -1661,7 +1731,9 @@ function drawView() {
   }
   if (!source) return;
   if (S.mode == 'sheet' && strip) drawMatrixOverlay(strip.H);
-  if (!H) { banner(S.mode == 'sheet' ? (strip ? 'striscia ok · cerco il foglio bianco…' : 'cerco il foglio bianco su fondo scuro…') : 'cerco i 4 marker agli angoli…'); return; }
+  if (!H && S.mode == 'sheet' && strip) { tag('matrice ✓ · cerco il foglio A4…'); return; }
+  if (!H) { banner(S.mode == 'sheet' ? 'cerco il foglio A4 e la matrice su fondo scuro…' : 'cerco i 4 marker agli angoli…'); return; }
+  if (S.mode == 'sheet' && !strip) tag('A4 ✓ · cerco la matrice…');
   var lw = Math.max(2, view.width / 420);
   function poly(pts, stroke, fill, w, dash) { vctx.beginPath(); pts.forEach(function (p, i) { var q = proj(H, p[0], p[1]); if (i) vctx.lineTo(q[0], q[1]); else vctx.moveTo(q[0], q[1]); }); vctx.closePath(); if (fill) { vctx.fillStyle = fill; vctx.fill(); } if (stroke) { vctx.setLineDash(dash || []); vctx.strokeStyle = stroke; vctx.lineWidth = w || lw; vctx.stroke(); vctx.setLineDash([]); } }
   function rect(r, stroke, fill, w, dash) { poly([[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], stroke, fill, w, dash); }
@@ -1928,7 +2000,9 @@ function updateTele() {
     var seen = {}; (lastSeenIds || []).forEach(function (id) { seen[id] = 1; });
     lock = 'marker ' + [0, 1, 2, 3].map(function (id) { return '<b class="' + (seen[id] ? 'ok' : 'bad') + '">' + id + '</b>'; }).join(' ') + ' · ' + mkCount + '/4<br>' + (H ? '<span class="ok">prospettiva ok</span>' + (mkCount ? '' : ' <span class="warn">(ultima buona)</span>') : '<span class="bad">nessuna prospettiva</span>');
   } else {
-    lock = 'foglio ' + (H ? '<b class="ok">trovato</b>' : manualPts ? '<b class="warn">angoli a mano</b>' : '<b class="bad">cerco</b>') + '<br>striscia ' + (strip ? '<b class="ok">trovata</b> ' + mxRowShapes().map(function (h) { return h ? shapeSvg(h, 11, '#e7ebf0') : '?'; }).join(' ') : '<b class="dim">non vista</b>');
+    var pxmm = function (c, wmm) { var dd = function (a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }; return (dd(c[0], c[1]) + dd(c[3], c[2])) / 2 / wmm; };
+    lock = '<b>A4</b> ' + (H && sheetCorners ? '<b class="ok">trovato</b> · ' + quadAspect(sheetCorners).toFixed(2) + ' <span class="dim">(1,41)</span> · ' + pxmm(sheetCorners, 297).toFixed(1) + ' px/mm' : manualPts ? '<b class="warn">angoli a mano</b>' : H ? '<b class="warn">angoli a mano</b>' : '<b class="bad">cerco</b>') +
+      '<br><b>matrice</b> ' + (strip ? '<b class="ok">trovata</b> · ' + quadAspect(strip.c).toFixed(2) + ' <span class="dim">(' + (strip.tpl ? '4,00' : 'a mano') + ')</span> · ' + pxmm(strip.c, 297).toFixed(1) + ' px/mm' + (strip.tpl ? ' · ' + (strip.flipped ? 'capovolta' : 'dritta') : ' · ' + mxRowShapes().map(function (h) { return h ? shapeSvg(h, 11, '#e7ebf0') : '?'; }).join(' ')) : '<b class="bad">cerco</b>');
   }
   $('tLock').innerHTML = lock;
   var ph = playheadPos(), step = ph == null ? null : Math.min(16, Math.floor(ph / 4) + 1);
@@ -1950,7 +2024,7 @@ function updateTele() {
   $('tMat').innerHTML = h; $('tMatN').textContent = act + ' colpi' + (MX ? ' · ' + MX.ms.toFixed(0) + ' ms' + (MX.hand ? ' · mano/ombra: caselle grigie ferme' : '') : '');
   $('tAudio').innerHTML = AC ? '<b class="' + (AC.state == 'running' ? 'ok' : 'warn') + '">' + AC.state + '</b> · ' + (AC.sampleRate / 1000).toFixed(1) + ' kHz<br>latenza ' + Math.round(((AC.baseLatency || 0) + (AC.outputLatency || 0)) * 1000) + ' ms · vol ' + Math.round(S.volume * 100) + '%' : '<span class="dim">si accende al primo comando</span>';
   var ca = $('chipAudio'); ca.className = 'chip ' + (AC && AC.state == 'running' ? 'ok' : 'warn'); ca.lastChild.textContent = AC && AC.state == 'running' ? 'audio attivo' : 'audio spento';
-  $('hud').innerHTML = source ? '<span>' + (S.mode == 'board' ? 'MARKER ' + mkCount + '/4' : H ? 'FOGLIO OK' : 'FOGLIO ?') + '</span><span>' + (source == 'cam' ? fps.toFixed(0) + ' FPS' : 'FERMO') + '</span>' + (S.playing && step ? '<span>PASSO ' + step + '/16</span>' : '') : '';
+  $('hud').innerHTML = source ? '<span>' + (S.mode == 'board' ? 'MARKER ' + mkCount + '/4' : 'A4 ' + (H ? '✓' : '?') + ' · MATRICE ' + (strip ? '✓' : '?')) + '</span><span>' + (source == 'cam' ? fps.toFixed(0) + ' FPS' : 'FERMO') + '</span>' + (S.playing && step ? '<span>PASSO ' + step + '/16</span>' : '') : '';
 }
 
 
@@ -1992,7 +2066,7 @@ function buildDock() {
 }
 function updateDockMini() {
   var ph = playheadPos(), step = ph == null ? null : Math.min(16, Math.floor(ph / 4) + 1);
-  $('dockMini').textContent = (S.playing ? '▶ ' : '■ ') + S.bpm + ' bpm' + (step ? ' · passo ' + step + '/16' : '') + ' · ' + (S.mode == 'board' ? 'marker ' + mkCount + '/4' : H ? 'foglio ok' : 'cerco il foglio') + (S.muteC.some(Boolean) || S.muteD.some(Boolean) ? ' · muti: ' + L.instruments.filter(function (x, i) { return S.muteC[i]; }).concat(L.drums.filter(function (x, i) { return S.muteD[i]; })).map(function (x) { return x.name.toLowerCase(); }).join(', ') : '');
+  $('dockMini').textContent = (S.playing ? '▶ ' : '■ ') + S.bpm + ' bpm' + (step ? ' · passo ' + step + '/16' : '') + ' · ' + (S.mode == 'board' ? 'marker ' + mkCount + '/4' : 'A4 ' + (H ? '✓' : '…') + ' · matrice ' + (strip ? '✓' : '…')) + (S.muteC.some(Boolean) || S.muteD.some(Boolean) ? ' · muti: ' + L.instruments.filter(function (x, i) { return S.muteC[i]; }).concat(L.drums.filter(function (x, i) { return S.muteD[i]; })).map(function (x) { return x.name.toLowerCase(); }).join(', ') : '');
 }
 
 /* ---------------- interfaccia ---------------- */
@@ -2022,7 +2096,9 @@ function buildUI() {
   L.drums.forEach(function (d, i) { var b = document.createElement('button'); b.className = 'tog'; b.innerHTML = shapeSvg(d.shape, 18) + d.name + '<span class="st">ON</span>'; b.title = 'Tasto ' + (i + 6); b.onclick = function () { setMute('d', i, !S.muteD[i], 'schermo'); }; $('mutesD').appendChild(b); });
   function applyMode() { $('selMode').value = S.mode; $('sheetTools').style.display = S.mode == 'sheet' ? '' : 'none'; H = null; findSheet(); manualPts = null; lastDetect = 0; }
   $('selMode').onchange = function () { S.mode = this.value; saveTeacher(); applyMode(); logEvent(S.mode == 'board' ? 'modalità: base in cartone con marker' : 'modalità: solo foglio + striscia'); if (source == 'image' && /demo/.test(srcLabel)) loadDemo(); };
-  $('bFind').onclick = function () { manualPts = null; findSheet(); };
+  $('bFind').onclick = function () { manualPts = null; findSheet(); logEvent('cerco di nuovo foglio A4 e matrice'); };
+  $('bFindSheet').onclick = function () { manualPts = null; findSheetOnly(); logEvent('cerco di nuovo solo il foglio A4'); };
+  $('bFindStrip').onclick = function () { findStripOnly(); logEvent('cerco di nuovo solo la matrice'); };
   $('bCorners').onclick = function () { manualPts = []; sheetLock = true; H = null; toast('Clicca i 4 angoli del foglio sull\'immagine della camera'); };
   $('bRot').onclick = function () { rot180 = !rot180; if (sheetCorners) setSheetH(sheetCorners); };
   view.addEventListener('click', function (e) {
