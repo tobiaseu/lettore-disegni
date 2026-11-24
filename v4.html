@@ -408,6 +408,7 @@ var S = {
 };
 try { var saved = JSON.parse(localStorage.getItem('lettore-v4') || '{}'); ['volume', 'sheet', 'camCtl', 'sens', 'mode', 'hand', 'glide'].forEach(function (k) { if (k in saved) S[k] = saved[k]; }); if (!saved.sv) S.sheet = 'inst'; } catch (e) {}
 S.mode = 'sheet'; /* v4: solo fogli sul tappetino, niente base con marker */
+if (!S.mxKind) S.mxKind = 'print';
 L = LAYOUT_V4(S.hand);
 function saveTeacher() { try { localStorage.setItem('lettore-v4', JSON.stringify({ sv: 2, volume: S.volume, sheet: S.sheet, camCtl: S.camCtl, sens: S.sens, mode: S.mode, hand: S.hand, glide: S.glide })); } catch (e) {} }
 
@@ -741,7 +742,7 @@ function readControls() {
 }
 
 /* ---------------- modalità solo foglio ---------------- */
-var lastShapes = [], sheetLock = false, sheetCand = null, sheetCandN = 0, manualPts = null, rot180 = false, sheetCorners = null, stripFound = null;
+var stripMiss = 0, lastShapes = [], sheetLock = false, sheetCand = null, sheetCandN = 0, manualPts = null, rot180 = false, sheetCorners = null, stripFound = null;
 function otsu(hist, total) {
   var sum = 0, i; for (i = 0; i < 256; i++) sum += i * hist[i];
   var sB = 0, wB = 0, best = 0, th = 128;
@@ -795,6 +796,11 @@ function detectSheet(detW) {
     for (y = 0; y < h; y++) for (x = 0; x < w; x++) { m = 0; for (k = Math.max(0, y - r); k <= Math.min(h - 1, y + r); k++) if (tmp[k * w + x]) { m = 1; break; } bar[y * w + x] = m; }
     label(function (k) { return !bar[k] && lum[k] > t1; }, 'bordi' + T + '/' + r, r + 1);
   });
+  /* terza strada, per il tappetino verde: tutto ciò che non ha colore (carta + inchiostro nero) contro lo sfondo colorato.
+     I simboli neri vicino al bordo non tagliano più la carta */
+  var satA = new Uint8Array(n), nCol = 0;
+  for (i = 0; i < n; i++) { var r0 = d[4 * i], g0 = d[4 * i + 1], b0 = d[4 * i + 2], m0 = Math.max(r0, g0, b0), s0 = m0 ? (m0 - Math.min(r0, g0, b0)) / m0 : 0; satA[i] = s0 * 255; if (s0 > .25) nCol++; }
+  if (nCol > n * .08) label(function (k) { return satA[k] < 46; }, 'senza colore', 0);
   /* per ogni zona bianca: 4 angoli, lato lungo in orizzontale, proporzioni */
   function dist(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
   var shapes = comps.map(function (e) {
@@ -824,6 +830,40 @@ function detectSheet(detW) {
   stripCands = longQ.map(function (q) { return q.c; });
   stripFound = pickStrip(stripCands, sheetCorners || (sheetQ ? sheetQ.c : null));
   return sheetQ ? sheetQ.c : null;
+}
+/* Ripiego quando la matrice non si stacca dallo sfondo (sporge sul tavolo bianco, bordi confusi): la cerco sopra e
+   sotto il foglio A5 già agganciato, sullo stesso piano. Nel piano del foglio (mm) guardo riga per riga quanta carta
+   c'è (chiara e senza colore, il tappetino è verde): la fascia di carta alta circa 52 mm è la matrice. */
+function expectedStrip() {
+  if (!H || !L.sheet) return null;
+  var S0 = L.sheet, lv = [], x, y;
+  for (y = S0.y + 15; y < S0.y + S0.h - 15; y += 9) for (x = S0.x + 15; x < S0.x + S0.w - 15; x += 13) { var p0 = proj(H, x, y), q0 = rgbF(p0[0], p0[1]); if (q0) lv.push(q0[0] * .3 + q0[1] * .59 + q0[2] * .11); }
+  lv.sort(function (a, b) { return a - b; }); var PL = lv.length ? lv[Math.floor(lv.length * .7)] : 180;
+  function paper(xx, yy) { var p = proj(H, xx, yy), q = rgbF(p[0], p[1]); if (!q) return 0; var mx = Math.max(q[0], q[1], q[2]), sat = mx ? (mx - Math.min(q[0], q[1], q[2])) / mx : 0, l = q[0] * .3 + q[1] * .59 + q[2] * .11;
+    return sat < .16 && l > PL * .72 ? 1 : 0; }
+  function band(y0, y1) {
+    var rows = []; for (y = y0; y < y1; y += 1) { var f = 0, n = 0; for (x = S0.x + 8; x < S0.x + S0.w - 8; x += 3) { f += paper(x, y); n++; } rows.push({ y: y, f: f / n }); }
+    /* fascia più lunga con carta >= 55% (i simboli neri e le macchie abbassano un po') */
+    var best = null, i = 0;
+    while (i < rows.length) { if (rows[i].f < .55) { i++; continue; } var j = i; while (j < rows.length && rows[j].f >= .55) j++;
+      var h = rows[j - 1].y - rows[i].y + 1; if (!best || Math.abs(h - 52.5) < Math.abs(best.h - 52.5)) best = { y0: rows[i].y, y1: rows[j - 1].y + 1, h: h }; i = j; }
+    (expectedStrip.dbg || (expectedStrip.dbg = [])).push(rows.map(function (r) { return Math.round(r.f * 9); }).join(''));
+    return best && best.h > 34 && best.h < 95 ? best : null;
+  }
+  var up = band(S0.y - 120, S0.y - 1), dn = band(S0.y + S0.h + 1, S0.y + S0.h + 120), b = up && dn ? (Math.abs(up.h - 52.5) <= Math.abs(dn.h - 52.5) ? up : dn) : up || dn;
+  if (!b) return null;
+  /* lati: dove finisce la carta sul verde; se sporge sul tavolo bianco tengo i lati del foglio */
+  var ym = (b.y0 + b.y1) / 2, xL = S0.x, xR = S0.x + S0.w;
+  /* livello della carta della matrice (spesso più grigia del tavolo bianco): se il tavolo è più chiaro, il bordo si vede lo stesso */
+  var ls = []; for (y = b.y0 + 3; y < b.y1 - 3; y += 2) for (x = S0.x + S0.w / 2 - 60; x < S0.x + S0.w / 2 + 60; x += 3) { var pp = proj(H, x, y), qq = rgbF(pp[0], pp[1]); if (qq) ls.push(qq[0] * .3 + qq[1] * .59 + qq[2] * .11); }
+  ls.sort(function (a, c) { return a - c; }); var SL = ls.length ? ls[Math.floor(ls.length * .6)] : PL;
+  function stripPaper(xx, yy) { if (!paper(xx, yy)) return 0; var p = proj(H, xx, yy), q = rgbF(p[0], p[1]), l = q[0] * .3 + q[1] * .59 + q[2] * .11; return l < SL * 1.07 + 4 ? 1 : 0; }
+  function colF(xx) { var f = 0, n = 0; for (y = b.y0 + 4; y < b.y1 - 4; y += 2) { f += stripPaper(xx, y); n++; } return n ? f / n : 0; }
+  for (x = S0.x + S0.w / 2; x > S0.x - 40; x -= 1) if (colF(x) < .4) break; var l0 = x + 1;
+  for (x = S0.x + S0.w / 2; x < S0.x + S0.w + 40; x += 1) if (colF(x) < .4) break; var r0 = x - 1;
+  if (r0 - l0 > 180 && r0 - l0 < 270 && l0 > S0.x - 39 && r0 < S0.x + S0.w + 39) { xL = l0; xR = r0; }
+  else if (r0 - l0 >= 222) { var mid = (l0 + r0) / 2; if (l0 > S0.x - 29) { xL = l0; xR = l0 + 210; } else if (r0 < S0.x + S0.w + 29) { xR = r0; xL = r0 - 210; } }
+  return [[xL, b.y0], [xR, b.y0], [xR, b.y1], [xL, b.y1]].map(function (p) { return proj(H, p[0], p[1]); });
 }
 /* Quale zona bianca allungata è la matrice? Se conosco il foglio A4, uso la sua prospettiva:
    foglio e matrice stanno sullo stesso piano, quindi misuro ogni candidato in millimetri veri
@@ -881,7 +921,7 @@ function rgbF(x, y) {
    inchiostro (scuro senza colore: simboli, che uniscono la carta da una parte e dall'altra) o altro
    (cartone, tavolo, sfondo). Il bordo è la fine della carta verso fuori. Così non mi confondo né con
    i simboli vicino al bordo né con il bordo del cartone più in là. */
-var refineDbg = [];
+var refineDbg = [], refineLog = [];
 function refineQuad1(c) {
   if (!c || !img) return c; refineDbg = [];
   var cx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, cy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4, lines = [], ok = 0, longest = 0, e, k;
@@ -893,9 +933,11 @@ function refineQuad1(c) {
     var q = rgbF(px0 + (px1 - px0) * b1, py0 + (py1 - py0) * b1); if (q) lv.push(q[0] * .3 + q[1] * .59 + q[2] * .11);
   }
   lv.sort(function (x, y) { return x - y; }); var PL = lv.length ? lv[Math.floor(lv.length * .8)] : 200;
+  var PH = 0; /* carta più scura dello sfondo (striscia che sporge sul tavolo bianco): la carta sta sotto questa soglia */
   var PT = 0; /* soglia della carta in questo punto: alzata quando lo sfondo fuori è chiaro anche lui (foglio quadrettato) */
   function cls(q) { if (!q) return 'O'; var mx = Math.max(q[0], q[1], q[2]), mn = Math.min(q[0], q[1], q[2]), sat = mx ? (mx - mn) / mx : 0, l = q[0] * .3 + q[1] * .59 + q[2] * .11;
-    if (l > Math.max(PL * .8, PT) && sat < .13) return 'P'; if (sat < .16 && l < PL * .62) return 'K'; return 'O'; }
+    if (PH && l > PL * .78 && l < PH && sat < .13) return 'P';
+    if (!PH && l > Math.max(PL * .8, PT) && sat < .13) return 'P'; if (sat < .16 && l < PL * .62) return 'K'; return 'O'; }
   for (e = 0; e < 4; e++) {
     var A = c[e], B = c[(e + 1) % 4], len = Math.hypot(B[0] - A[0], B[1] - A[1]), nx = -(B[1] - A[1]) / len, ny = (B[0] - A[0]) / len;
     if (((A[0] + B[0]) / 2 - cx) * nx + ((A[1] + B[1]) / 2 - cy) * ny < 0) { nx = -nx; ny = -ny; } /* normale verso fuori */
@@ -908,9 +950,16 @@ function refineQuad1(c) {
       /* sfondo chiaro (quaderno a quadretti, tavolo bianco): la carta è solo quello più chiaro della metà tra carta e sfondo */
       var outs = []; for (k = R + Math.round(R * .45); k < Q.length; k++) if (Q[k]) outs.push(Q[k][0] * .3 + Q[k][1] * .59 + Q[k][2] * .11);
       outs.sort(function (x, y) { return x - y; }); var outL = outs.length ? outs[outs.length >> 1] : 0;
-      var PLs = PL; PL = Math.min(PLs, Math.max(loc, PLs * .7)); PT = outL > PL * .7 ? (PL + outL) / 2 : 0;
-      Q.forEach(function (q) { C.push(cls(q)); }); PL = PLs; PT = 0;
+      /* sfondo colorato (tappetino verde): carta e inchiostro sono senza colore, lo sfondo sì. Così i simboli neri vicino
+         al bordo e il bordo un po' morbido o strappato non spostano il lato */
+      var oss = []; for (k = R + Math.round(R * .45); k < Q.length; k++) if (Q[k]) { var qq = Q[k], mq = Math.max(qq[0], qq[1], qq[2]); oss.push(mq ? (mq - Math.min(qq[0], qq[1], qq[2])) / mq : 0); }
+      oss.sort(function (x, y) { return x - y; }); var outS = oss.length ? oss[oss.length >> 1] : 0;
+      var PLs = PL; PL = Math.min(PLs, Math.max(loc, PLs * .7)); PT = outL > PL * .7 ? (PL + outL) / 2 : 0; PH = outL > PL * 1.07 ? (PL + outL) / 2 : 0; if (PH) PT = 0;
+      if (outS > .22) Q.forEach(function (q) { if (!q) { C.push('O'); return; } var m1 = Math.max(q[0], q[1], q[2]), sq = m1 ? (m1 - Math.min(q[0], q[1], q[2])) / m1 : 0; C.push(sq < outS * .55 ? 'P' : 'O'); });
+      else Q.forEach(function (q) { C.push(cls(q)); });
+      PL = PLs; PT = 0; PH = 0;
       /* uniscono la carta i tratti d'inchiostro corti (un simbolo vicino al bordo) */
+      if (t == 14) (refineDbg.strs || (refineDbg.strs = [])).push(e + ':' + C.join('') + ' outS' + outS.toFixed(2) + ' outL' + Math.round(outL) + ' PL' + Math.round(PL));
       var str = C.join('').replace(/P(K{1,14})(?=P)/g, function (m, g) { return 'P' + g.replace(/K/g, 'P'); });
       /* la carta "di riferimento" è quella che copre la metà interna; il bordo è dove finisce verso fuori */
       var best = -1, bestCov = 0, i0 = 0;
@@ -933,6 +982,7 @@ function refineQuad1(c) {
     var Lf = fitLine(bestIn);
     lines.push(Lf); ok++;
   }
+  refineLog.push({ c: c.map(function (p) { return p.map(Math.round); }), n: refineDbg.map(function (p) { return p.length; }), ok: lines.map(function (l) { return !!l; }), s: refineDbg.strs }); if (refineLog.length > 6) refineLog.shift();
   if (ok < 2) return c;
   /* un lato che non si riesce a misurare (corto, in ombra) resta quello di partenza */
   for (e = 0; e < 4; e++) if (!lines[e]) { var A2 = c[e], B2 = c[(e + 1) % 4], l2 = Math.hypot(B2[0] - A2[0], B2[1] - A2[1]); lines[e] = { x: A2[0], y: A2[1], dx: (B2[0] - A2[0]) / l2, dy: (B2[1] - A2[1]) / l2 }; }
@@ -964,14 +1014,33 @@ var lastCellDbg = [], SU = 720, SV = 200, stripMoveN = 0, lastStripTrack = 0, st
 var SHAPE_DRUM = { rect: 'snare', diamond: 'hat', tri: 'clap', circle: 'kick' };
 var SHAPE_LETTER = { rect: 'R', diamond: 'H', tri: 'C', circle: 'K' };
 function drumIndex(key) { for (var i = 0; i < ND; i++) if (L.drums[i].key == key) return i; return -1; }
+var stripExcl = null; /* fuori dalla carta (tappetino che si vede da un angolo strappato), allargato di 4 px */
 function sampleStrip(Hs) {
-  var G = new Float32Array(SU * SV), W = img.width, Hh = img.height, d = img.data;
+  var G = new Float32Array(SU * SV), W = img.width, Hh = img.height, d = img.data, ex = new Uint8Array(SU * SV);
   for (var v = 0; v < SV; v++) for (var u = 0; u < SU; u++) {
     var p = proj(Hs, u + .5, v + .5), x = p[0] | 0, y = p[1] | 0;
     if (x < 0 || y < 0 || x >= W - 1 || y >= Hh - 1) { G[v * SU + u] = 255; continue; }
-    var i = (y * W + x) * 4, j = i + W * 4;
-    G[v * SU + u] = ((d[i] + d[i + 4] + d[j] + d[j + 4]) * .3 + (d[i + 1] + d[i + 5] + d[j + 1] + d[j + 5]) * .59 + (d[i + 2] + d[i + 6] + d[j + 2] + d[j + 6]) * .11) / 4;
+    var i = (y * W + x) * 4, j = i + W * 4, R0 = d[i] + d[i + 4] + d[j] + d[j + 4], G0 = d[i + 1] + d[i + 5] + d[j + 1] + d[j + 5], B0 = d[i + 2] + d[i + 6] + d[j + 2] + d[j + 6];
+    var mx = Math.max(R0, G0, B0), mn = Math.min(R0, G0, B0);
+    /* il tappetino verde (o un colore forte) dove l'angolo è strappato non è inchiostro: lo tratto come carta */
+    var lum = (R0 * .3 + G0 * .59 + B0 * .11) / 4;
+    if (mx > 0 && (mx - mn) / mx > .28 && mx > 120) { ex[v * SU + u] = 1; G[v * SU + u] = Math.min(lum, 255 * (1.15 - (mx - mn) / mx * 1.3)); }
+    else G[v * SU + u] = lum;
   }
+  /* il colore che tocca il bordo della striscia è il tappetino (angolo strappato): lo tratto come carta.
+     Il colore chiuso dentro la carta è una forma colorata dai bambini: resta inchiostro (più è saturo, più è scuro) */
+  var st = [], sp = 0, k0;
+  for (u = 0; u < SU; u++) { if (ex[u] == 1) { ex[u] = 2; st[sp++] = u; } k0 = (SV - 1) * SU + u; if (ex[k0] == 1) { ex[k0] = 2; st[sp++] = k0; } }
+  for (v = 0; v < SV; v++) { k0 = v * SU; if (ex[k0] == 1) { ex[k0] = 2; st[sp++] = k0; } k0 += SU - 1; if (ex[k0] == 1) { ex[k0] = 2; st[sp++] = k0; } }
+  while (sp) { var kk = st[--sp], xx = kk % SU, yy = (kk / SU) | 0;
+    if (xx > 0 && ex[kk - 1] == 1) { ex[kk - 1] = 2; st[sp++] = kk - 1; } if (xx < SU - 1 && ex[kk + 1] == 1) { ex[kk + 1] = 2; st[sp++] = kk + 1; }
+    if (yy > 0 && ex[kk - SU] == 1) { ex[kk - SU] = 2; st[sp++] = kk - SU; } if (yy < SV - 1 && ex[kk + SU] == 1) { ex[kk + SU] = 2; st[sp++] = kk + SU; } }
+  for (v = 0; v < SV * SU; v++) { if (ex[v] == 2) { G[v] = 255; ex[v] = 1; } else ex[v] = 0; }
+  /* allargo la zona esclusa: il bordo misto carta/tappetino è grigio scuro e sembrerebbe inchiostro */
+  var e2 = new Uint8Array(SU * SV), RR = 5, u2, v2;
+  for (v = 0; v < SV; v++) for (u = 0; u < SU; u++) { if (!ex[v * SU + u]) continue;
+    for (v2 = Math.max(0, v - RR); v2 <= Math.min(SV - 1, v + RR); v2++) for (u2 = Math.max(0, u - RR); u2 <= Math.min(SU - 1, u + RR); u2++) e2[v2 * SU + u2] = 1; }
+  stripExcl = e2;
   return G;
 }
 function pct(G, q) { var a = Array.prototype.slice.call(G, 0).filter(function (_, i) { return i % 7 == 0; }).sort(function (x, y) { return x - y; }); return a[Math.floor(a.length * q)]; }
@@ -1069,7 +1138,9 @@ function setupStrip(c) {
   if (H && sheetCorners) { var Pm = planeSize(toPlane(sheetCorners), c); asp = Pm.w / Math.max(1, Pm.h); r.plane = Pm; }
   r.aspect = asp;
   /* proporzioni 4:1 = matrice stampata (le strisce a mano con la legenda stanno sotto 3,5:1) */
-  if (!(asp < 3.6 && r.ratio < 1.5) && asp < 9) { /* la matrice stampata è 4:1; solo una striscia più corta e senza modello è quella disegnata a mano */
+  /* v4: la matrice è quella stampata (anche tagliata male, con gli angoli strappati); le proporzioni misurate in prospettiva
+     non sono affidabili, quindi decide l'impostazione (Impostazioni > Matrice), non la forma */
+  if (S.mxKind != 'hand') { /* la matrice stampata è 4:1; solo una striscia più corta e senza modello è quella disegnata a mano */
     /* la griglia è legata ai bordi della carta: 297 x 74,25 diviso esattamente in 16 x 4.
        Dal modello prendo solo il verso (striscia capovolta o no) */
     var ink0 = mxInk, full0 = tplFilled(ink0, 0, 0, 1, false), full1 = tplFilled(ink0, 0, 0, 1, true), regI = tplRegInk(ink0);
@@ -1077,13 +1148,21 @@ function setupStrip(c) {
     var oN = tplOrientScore(ink0, false), oF = tplOrientScore(ink0, true), bo = tplBlobOrient(ink0);
     /* il verso: prima le macchie piene contate per riga (robusto anche se i bordi sono spostati di qualche mm),
        poi le forme piene nella griglia esatta, infine il tratteggio se la striscia è vuota */
-    var flip = bo.n >= 2 && bo.N != bo.F ? bo.F > bo.N : oN.n + oF.n >= 2 ? oF.s > oN.s : sF > sN;
+    var flip = bo.n >= 2 && bo.N != bo.F ? bo.F > bo.N : oN.n + oF.n >= 2 ? oF.s > oN.s : sF > sN, flip0 = flip;
     if (flip) { c = [c[2], c[3], c[0], c[1]]; Hs = homography(src, c); }
+    /* bordi letti male (angolo strappato, bordo sfocato, carta tagliata storta): le forme piene stampate sono
+       al centro esatto della loro casella, quindi correggo la griglia con le forme stesse (rotazione, inclinazione, scala) */
+    var fit = tplBlobFit(Hs);
+    if (fit) { fit.flip = flip0; Hs = fit.H; G2 = sampleStrip(Hs); mxNormalize(G2); bo = tplBlobOrient(mxInk); flip = false;
+      /* con la griglia giusta le forme dicono il verso con più sicurezza: se dicono "capovolta", giro e ricorreggo */
+      if (bo.n >= 3 && bo.F > bo.N * 2 + 1) { var Hr = matMul3(Hs, [-1, 0, SU, 0, -1, SV, 0, 0, 1]), fit2 = tplBlobFit(Hr);
+        Hs = fit2 ? fit2.H : Hr; fit.flip = !flip0; fit.info = fit2 ? fit2.info : fit.info; G2 = sampleStrip(Hs); mxNormalize(G2); bo = tplBlobOrient(mxInk); }
+      c = [[0, 0], [SU, 0], [SU, SV], [0, SV]].map(function (k) { return proj(Hs, k[0], k[1]); }); }
     /* rifinitura: fogli tagliati storti o bordi letti con 1-2 mm di errore. Sposto la griglia della mediana
        dello scarto tra le macchie piene e il centro della loro casella (al massimo un terzo di casella) */
-    var off = tplBlobOffset(bo.blobs, flip);
+    var off = tplBlobOffset(bo.blobs, fit ? false : flip);
     var rr = { dx: off.du, dy: off.dv, sy: 1, s: Math.max(sN, sF), ratio: r.ratio, strict: true };
-    MX = null; strip = { c: c, H: Hs, g: tplGrid(rr), header: [], tpl: true, aspect: asp, flipped: flip, oN: oN, oF: oF, sN: sN, sF: sF, bo: { n: bo.n, N: bo.N, F: bo.F }, off: off, conf: Math.max(sN, sF) / Math.max(.004, Math.min(sN, sF)) };
+    MX = null; strip = { c: c, H: Hs, g: tplGrid(rr), header: [], tpl: true, aspect: asp, flipped: !!(flip || (fit && fit.flip)), fit: fit && fit.info, oN: oN, oF: oF, sN: sN, sF: sF, bo: { n: bo.n, N: bo.N, F: bo.F }, off: off, conf: Math.max(sN, sF) / Math.max(.004, Math.min(sN, sF)) };
     tplInit(rr); readStrip();
     toast('Matrice trovata dai bordi · ' + (flip ? 'era capovolta, la giro io' : 'dritta'));
     logEvent('matrice agganciata ai bordi · proporzioni ' + asp.toFixed(2) + ' (modello 4,00) · ' + (flip ? 'capovolta' : 'dritta') + ' · sicurezza del verso ' + strip.conf.toFixed(2));
@@ -1158,6 +1237,18 @@ function mxNormalize(G) {
   for (v = 0; v < hh; v++) for (u = 0; u < hw; u++) { m = 0; for (k = Math.max(0, u - B); k <= Math.min(hw - 1, u + B); k++) m += mxBg[v * hw + k]; mxTmp[v * hw + u] = m / (Math.min(hw - 1, u + B) - Math.max(0, u - B) + 1); }
   for (u = 0; u < hw; u++) for (v = 0; v < hh; v++) { m = 0; for (k = Math.max(0, v - B); k <= Math.min(hh - 1, v + B); k++) m += mxTmp[k * hw + u]; mxBg[v * hw + u] = m / (Math.min(hh - 1, v + B) - Math.max(0, v - B) + 1); }
   for (v = 0; v < SV; v++) for (u = 0; u < SU; u++) { var b = Math.max(30, mxBg[Math.min(hh - 1, v >> 1) * hw + Math.min(hw - 1, u >> 1)]), x = 1 - G[v * SU + u] / b; mxInk[v * SU + u] = x < 0 ? 0 : x; }
+  mxCleanBorder();
+}
+/* bordi morbidi o strappati: la fascia scura che parte dal bordo della carta (ombra, bordo sfocato, tappetino) non è
+   inchiostro. Da ogni bordo cammino verso l'interno finché è scuro: se la fascia è sottile (<= 10 px) la tolgo,
+   se è più lunga è un simbolo tagliato dal bordo e tolgo solo i primi 4 px */
+function mxCleanBorder() {
+  var T = .22, MAXW = 10, u, v, k, i;
+  if (stripExcl) for (i = 0; i < SU * SV; i++) if (stripExcl[i]) mxInk[i] = 0;
+  function walk(start, step, count) { var run = 0; for (k = 0; k < count; k++) { if (mxInk[start + k * step] > T) run++; else break; }
+    var cut = run <= MAXW ? run : 4; for (k = 0; k < cut; k++) mxInk[start + k * step] = 0; }
+  for (v = 0; v < SV; v++) { walk(v * SU, 1, 24); walk(v * SU + SU - 1, -1, 24); }
+  for (u = 0; u < SU; u++) { walk(u, SU, 20); walk((SV - 1) * SU + u, -SU, 20); }
 }
 function mxCol(u) { var us = MX.g.us; if (u < us[0]) return MX.legend ? -1 : null; for (var k = 0; k < 16; k++) if (u < us[k + 1]) return k; return null; }
 function mxRow(v) { var vs = MX.g.vs; for (var j = 0; j < 4; j++) if (v < vs[j + 1]) return v >= vs[0] ? j : null; return null; }
@@ -1210,6 +1301,8 @@ function mxRead(G) {
     var w = c.a1 - c.a0 + 1, h = c.b1 - c.b0 + 1;
     /* mano o ombra netta. Sulla matrice stampata due forme piene vicine (rombo + rettangolo nella stessa colonna) possono
        toccarsi: non è una mano finché l'area resta piccola */
+    /* fascia scura lungo il bordo della carta (ombra, bordo sfocato o strappato): sottile e attaccata al bordo, non è una mano */
+    if (MX.tpl && (c.a0 <= MX.u0 + 3 || c.a1 >= MX.u1 - 4 || c.b0 <= MX.v0 + 3 || c.b1 >= MX.v1 - 4) && c.n / Math.max(w, h) < Math.min(p, q) * .3) return;
     if (MX.tpl ? (c.n > cellA * 1.1 || w > p * 2.6 || h > q * 2.6) : (w > p * 1.6 || h > q * 1.6 || c.n > cellA * 1.3)) { c.big = true; nBigC++; return; }
     if (c.n < cellA * .03) return;
     var kc = mxCol(c.su / c.n), jc = mxRow(c.sv / c.n); if (kc == null || jc == null) return;
@@ -1239,6 +1332,16 @@ function mxRead(G) {
     for (v = MX.v0; v < MX.v1; v += 2) { var jj = mxRow(v); if (jj == null) continue;
       for (u = MX.u0; u < MX.u1; u += 2) { var lb = lab[v * SU + u]; if (lb && comps[lb - 1].big) { var kk = mxCol(u); if (kk != null && kk >= 0) cnt[jj][kk] += 4; } } }
     for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) if (cnt[j][k] > minPx) blocked[j][k] = true;
+  }
+  /* sulla matrice stampata una macchia grande che resta ferma (angolo strappato, ombra del bordo, già lì all'aggancio
+     o per più di 2 s) non è una mano: quelle caselle si leggono normalmente, decide il contrasto forma/contorno */
+  if (MX.tpl) {
+    if (!MX.bAge) { MX.bAge = []; for (j = 0; j < 4; j++) MX.bAge.push(new Array(16).fill(0)); }
+    for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) {
+      if (!blocked[j][k]) { MX.bAge[j][k] = 0; continue; }
+      if (MX.fresh) MX.bAge[j][k] = 99; else MX.bAge[j][k]++;
+      if (MX.bAge[j][k] > 22) blocked[j][k] = false;
+    }
   }
   var nBig = 0; for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) if (blocked[j][k]) nBig++;
   MX.raw = raw; MX.rawShape = rawShape; MX.blocked = blocked; MX.blobs = comps.length; MX.hand = nBig > 0;
@@ -1382,7 +1485,7 @@ function tplOrientScore(ink, flip) {
 function tplBlobs(ink) {
   var n = SU * SV, lab = mxLab, cu = SU / 16, cv = SV / 4, amin = cu * cv * .05, amax = cu * cv * .9, out = [], st = [], i;
   lab.fill(0); var id = 0;
-  for (i = 0; i < n; i++) { if (lab[i] || ink[i] < .5) continue;
+  for (i = 0; i < n; i++) { if (lab[i] || ink[i] < .5 || (stripExcl && stripExcl[i])) continue;
     id++; var sp = 0, a = 0, sx = 0, sy = 0, x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1; st[sp++] = i; lab[i] = id;
     while (sp) { var k = st[--sp], x = k % SU, y = (k / SU) | 0; a++; sx += x; sy += y;
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
@@ -1393,7 +1496,7 @@ function tplBlobs(ink) {
     var w = x1 - x0 + 1, h = y1 - y0 + 1;
     if (a < amin || a > amax || w > cu * 1.3 || h > cv * 1.3 || x0 == 0 || y0 == 0 || x1 == SU - 1 || y1 == SV - 1) continue;
     var cx = sx / a, cy = sy / a;
-    out.push({ x: cx, y: cy, fill: a / (w * h), asp: (w / cu) / (h / cv), my: (cy - (y0 + y1) / 2) / h });
+    out.push({ x: cx, y: cy, fill: a / (w * h), asp: (w / cu) / (h / cv), my: (cy - (y0 + y1) / 2) / h, a: a, x0: x0, x1: x1, y0: y0, y1: y1 });
   }
   return out;
 }
@@ -1421,6 +1524,73 @@ function tplBlobOffset(bl, flip) {
   var mu = med(du), mv = med(dv);
   return { du: Math.abs(mu) < cu * .33 ? Math.round(mu) : 0, dv: Math.abs(mv) < cv * .33 ? Math.round(mv) : 0 };
 }
+/* corregge la griglia della striscia con le forme piene: ogni forma va al centro della casella della sua riga
+   (la riga si capisce dalla forma: cerchio, triangolo, rombo, rettangolo). Affine ai minimi quadrati, ancorata
+   debolmente ai 4 angoli della carta così con poche forme non si inventa niente. Restituisce null se non serve. */
+var fitDbg = [];
+function tplBlobFit(Hs0) {
+  fitDbg = [];
+  var Hs = Hs0, cu = SU / 16, cv = SV / 4, rowOf = { circle: 0, triU: 1, diamond: 2, rect: 3 }, info = null, any = false;
+  for (var it = 0; it < 3; it++) {
+    var G = sampleStrip(Hs); mxNormalize(G);
+    var bl = tplBlobs(mxInk), P = [];
+    var kA = (SU / TPL.w) * (SV / TPL.h);
+    bl.forEach(function (b) { var kd = blobKind(b), r = kd != null && rowOf[kd] != null ? rowOf[kd] : -1;
+      if (r < 0) return; var col = Math.max(0, Math.min(15, Math.floor(b.x / cu)));
+      /* solo forme vere: grandi come la forma stampata della loro riga e non schiacciate contro il bordo (ombre, fasce) */
+      var ar = b.a / (TPL_AREA[L.drums[r].shape] * kA); if (ar < .45 || ar > 1.9) return;
+      if (b.x0 < 4 || b.y0 < 4 || b.x1 > SU - 5 || b.y1 > SV - 5) return;
+      P.push({ t: [(col + .5) * cu, (r + .5) * cv], m: [b.x, b.y], w: 1 }); });
+    if (P.length < 3) break;
+    var cols = {}; P.forEach(function (q) { cols[Math.floor(q.t[0] / cu)] = 1; });
+    var A = null;
+    for (var pass = 0; pass < 2; pass++) {
+      /* minimi quadrati pesati: m = A · [t, 1]; ancore agli angoli con peso 1 */
+      var ob = P.filter(function (q) { return !q.out; }).map(function (q) { return [q.t, q.m, q.w]; });
+      [[0, 0], [SU, 0], [SU, SV], [0, SV]].forEach(function (k) { ob.push([k, k, .8]); });
+      A = affineLS(ob); if (!A) break;
+      P.forEach(function (q) { var p = affAp(A, q.t); q.out = Math.abs(p[0] - q.m[0]) > cu * .3 || Math.abs(p[1] - q.m[1]) > cv * .3; });
+    }
+    if (!A) break;
+    var Mf = [A[0], A[1], A[2], A[3], A[4], A[5], 0, 0, 1], inl = P.filter(function (q) { return !q.out; }), rows = {}, c0 = 99, c1 = -1;
+    inl.forEach(function (q) { rows[Math.floor(q.t[1] / cv)] = 1; var cc = Math.floor(q.t[0] / cu); c0 = Math.min(c0, cc); c1 = Math.max(c1, cc); });
+    /* tante forme ben distribuite: omografia completa (corregge anche un solo angolo letto male, tipico dell'angolo strappato) */
+    if (inl.length >= 7 && Object.keys(rows).length >= 3 && c1 - c0 >= 8) {
+      var Hh = homography(inl.map(function (q) { return q.t; }), inl.map(function (q) { return q.m; }));
+      if (Hh) { var bad = inl.some(function (q) { var p = proj(Hh, q.t[0], q.t[1]); return Math.abs(p[0] - q.m[0]) > cu * .3 || Math.abs(p[1] - q.m[1]) > cv * .3; }); if (!bad) Mf = Hh; }
+    }
+    /* spostamento massimo agli angoli: oltre mezza casella non mi fido */
+    var mv = 0, mvC = 0;
+    [[cu / 2, cv / 2], [SU - cu / 2, cv / 2], [SU - cu / 2, SV - cv / 2], [cu / 2, SV - cv / 2], [SU / 2, SV / 2]].forEach(function (k) { var p = proj(Mf, k[0], k[1]); mv = Math.max(mv, Math.abs(p[0] - k[0]) / cu, Math.abs(p[1] - k[1]) / cv); });
+    [[0, 0], [SU, 0], [SU, SV], [0, SV]].forEach(function (k) { var p = proj(Mf, k[0], k[1]); mvC = Math.max(mvC, Math.abs(p[0] - k[0]) / cu, Math.abs(p[1] - k[1]) / cv); });
+    fitDbg.push({ it: it, n: P.length, inl: inl.length, rows: Object.keys(rows).join(''), c: [c0, c1], H: Mf.length == 9 && Mf !== null && Mf[6] != 0, mv: +mv.toFixed(2), mvC: +mvC.toFixed(2), P: P.map(function (q) { return [Math.round(q.t[0] / cu - .5), Math.round(q.t[1] / cv - .5), Math.round(q.m[0]), Math.round(q.m[1]), q.out ? 1 : 0]; }) });
+    /* molte forme d'accordo (almeno 6, su almeno 2 righe): mi fido anche di uno spostamento di una riga o colonna intera */
+    var strong = inl.length >= 6 && Object.keys(rows).length >= 2;
+    if (mv > (strong ? 1.5 : .6) || mvC > (strong ? 2.2 : 1.3)) break;
+    if (mv < .04) break;
+    Hs = matMul3(Hs, Mf); any = true;
+    info = { n: P.length, used: P.filter(function (q) { return !q.out; }).length, move: +mv.toFixed(2), it: it + 1 };
+  }
+  return any ? { H: Hs, info: info } : null;
+}
+function affAp(A, p) { return [A[0] * p[0] + A[1] * p[1] + A[2], A[3] * p[0] + A[4] * p[1] + A[5]]; }
+function affineLS(ob) {
+  /* risolve due sistemi 3x3 (normali) */
+  var M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], bx = [0, 0, 0], by = [0, 0, 0];
+  ob.forEach(function (o) { var x = [o[0][0] / SU, o[0][1] / SV, 1], w = o[2];
+    for (var i = 0; i < 3; i++) { for (var j = 0; j < 3; j++) M[i][j] += w * x[i] * x[j]; bx[i] += w * x[i] * o[1][0]; by[i] += w * x[i] * o[1][1]; } });
+  var sx = solve3(M, bx), sy = solve3(M, by); if (!sx || !sy) return null;
+  return [sx[0] / SU, sx[1] / SV, sx[2], sy[0] / SU, sy[1] / SV, sy[2]];
+}
+function solve3(M, b) {
+  var a = M.map(function (r, i) { return r.concat([b[i]]); }), n = 3, i, j, k;
+  for (i = 0; i < n; i++) { var p = i; for (j = i + 1; j < n; j++) if (Math.abs(a[j][i]) > Math.abs(a[p][i])) p = j;
+    var t = a[i]; a[i] = a[p]; a[p] = t; if (Math.abs(a[i][i]) < 1e-9) return null;
+    for (j = i + 1; j < n; j++) { var f = a[j][i] / a[i][i]; for (k = i; k <= n; k++) a[j][k] -= f * a[i][k]; } }
+  var x = [0, 0, 0]; for (i = n - 1; i >= 0; i--) { var sm = a[i][n]; for (j = i + 1; j < n; j++) sm -= a[i][j] * x[j]; x[i] = sm / a[i][i]; }
+  return x;
+}
+function matMul3(A, B) { var C = []; for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) C.push(A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]); return C; }
 /* griglia (bordi delle caselle) per un aggancio */
 function tplGrid(r) {
   var g = { us: [], vs: [], o: r.dx, p: SU / 16, vo: 0, q: SV / 4 * r.sy };
@@ -1441,16 +1611,55 @@ function tplInit(r) {
    della forma della sua riga: un rombo disegnato un po' più grande, storto o spostato suona lo stesso,
    il tratteggio, un trattino o uno scarabocchio sottile no. */
 var TPL_AREA = { circle: Math.PI * 6.75 * 6.75, tri: 13.5 * 11.8 / 2, diamond: 7.9 * 13.7 / 2, rect: 8.5 * 13.4 };
+/* inchiostro che tocca il bordo della striscia ed è sottile verso il bordo = ombra o bordo morbido della carta, non un simbolo */
+var tplLab = null, tplEdge = null;
+function tplEdgeMask(ink, th) {
+  var n = SU * SV, lab = tplLab || (tplLab = new Int32Array(n)), out = tplEdge || (tplEdge = new Uint8Array(n)), st = [], id = 0, i, B = 4;
+  lab.fill(0); out.fill(0);
+  function dk(k) { return ink[k] > th && !(stripExcl && stripExcl[k]); }
+  for (i = 0; i < n; i++) { if (lab[i] || !dk(i)) continue;
+    id++; var sp = 0, x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1, mem = []; st[sp++] = i; lab[i] = id;
+    while (sp) { var k = st[--sp], x = k % SU, y = (k / SU) | 0; mem.push(k);
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && !lab[k - 1] && dk(k - 1)) { lab[k - 1] = id; st[sp++] = k - 1; }
+      if (x < SU - 1 && !lab[k + 1] && dk(k + 1)) { lab[k + 1] = id; st[sp++] = k + 1; }
+      if (y > 0 && !lab[k - SU] && dk(k - SU)) { lab[k - SU] = id; st[sp++] = k - SU; }
+      if (y < SV - 1 && !lab[k + SU] && dk(k + SU)) { lab[k + SU] = id; st[sp++] = k + SU; } }
+    var tL = x0 < B, tR = x1 >= SU - B, tT = y0 < B, tB = y1 >= SV - B;
+    var thin = (tL && x1 - x0 < 14) || (tR && x1 - x0 < 14) || (tT && y1 - y0 < 12) || (tB && y1 - y0 < 12);
+    if ((tL || tR || tT || tB) && thin) mem.forEach(function (q) { out[q] = 1; });
+  }
+  return out;
+}
+function tplContrast(ink, cu, cv, j, edge) {
+  var poly = tplPoly(L.drums[j].shape), ku = SU / TPL.w, kv = SV / TPL.h, si = 0, ni = 0, so = 0, no = 0, x, y;
+  for (y = -9; y <= 9; y += .6) for (x = -9; x <= 9; x += .6) {
+    var u = Math.round(cu + x * ku), v = Math.round(cv + y * kv); if (u < 0 || v < 0 || u >= SU || v >= SV) continue;
+    var q = v * SU + u; if (stripExcl && stripExcl[q]) continue;
+    var val = Math.min(1, ink[q] * 1.6);
+    if (inPoly(poly, x / .8, y / .8)) { si += val; ni++; } else if (!inPoly(poly, x / 1.3, y / 1.3)) { so += val; no++; }
+  }
+  return { inn: ni ? si / ni : 0, out: no ? so / no : 0 };
+}
+var cdbg = [];
 function tplCells(ink, blocked) {
-  var g = MX.g, th = .25 - S.sens * .07, raw = [], fills = [], half = .39;
+  cdbg = [];
+  var g = MX.g, th = .25 - S.sens * .07, raw = [], fills = [], half = .39, edge = tplEdgeMask(ink, th);
   for (var j = 0; j < 4; j++) {
     raw.push(new Array(16).fill(false)); fills.push(new Float32Array(16));
     var v0 = g.vs[j] + (g.vs[j + 1] - g.vs[j]) * (.5 - half), v1 = g.vs[j] + (g.vs[j + 1] - g.vs[j]) * (.5 + half), need = TPL_AREA[L.drums[j].shape] * (.45 + S.sens * -.1);
     for (var k = 0; k < 16; k++) {
-      var u0 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 - half), u1 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 + half), dark = 0, n = 0;
-      for (var v = Math.max(0, Math.round(v0)); v < Math.min(SV, Math.round(v1)); v++) for (var u = Math.max(0, Math.round(u0)); u < Math.min(SU, Math.round(u1)); u++) { n++; if (ink[v * SU + u] > th) dark++; }
+      var u0 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 - half), u1 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 + half), dark = 0, n = 0, nx = 0;
+      for (var v = Math.max(0, Math.round(v0)); v < Math.min(SV, Math.round(v1)); v++) for (var u = Math.max(0, Math.round(u0)); u < Math.min(SU, Math.round(u1)); u++) { n++; var ii = v * SU + u; if (stripExcl && stripExcl[ii]) { nx++; continue; } if (ink[ii] > th && !edge[ii]) dark++; }
       var mm2 = n ? dark / n * Math.pow(TPL.cell * half * 2, 2) : 0;
-      fills[j][k] = Math.min(1, mm2 / (need / .45)); raw[j][k] = mm2 >= need;
+      /* angolo strappato: la parte di casella che manca non conta, la soglia scende in proporzione (fino a metà) */
+      var needK = need * Math.max(.5, 1 - nx / Math.max(1, n));
+      /* contrasto forma/contorno: un simbolo pieno è scuro dentro la sua forma e chiaro intorno;
+         l'ombra o il bordo morbido di un angolo strappato copre dentro e fuori allo stesso modo */
+      var ct = tplContrast(ink, (g.us[k] + g.us[k + 1]) / 2, (g.vs[j] + g.vs[j + 1]) / 2, j, edge);
+      cdbg.push(ct);
+      var okC = ct.inn >= .6 && ct.inn - ct.out > .22;
+      fills[j][k] = Math.min(1, mm2 / (needK / .45)) * (okC ? 1 : .5); raw[j][k] = mm2 >= needK && okC;
     }
   }
   MX.fill = fills;
@@ -1502,6 +1711,8 @@ function readLoop() {
       if (!strip && manualPts == null && t0 - lastStripTry > (sheetLock ? 600 : 250)) {
         lastStripTry = t0;
         if (sheetLock) detectSheet(); else stripFound = pickStrip(stripCands, sheetCorners);
+        if (!stripFound && sheetLock && H) { stripMiss++; if (stripMiss >= (source == 'image' ? 1 : 4)) { stripFound = expectedStrip(); if (stripFound) logEvent('matrice cercata sopra/sotto il foglio (non si staccava dallo sfondo)'); } }
+        else stripMiss = 0;
         if (stripFound) {
           var nearS = stripCand && stripFound.every(function (p, k) { return Math.hypot(p[0] - stripCand[k][0], p[1] - stripCand[k][1]) < frame.width / 80; });
           if (nearS) stripCandN++; else { stripCand = stripFound; stripCandN = 1; }
@@ -2322,7 +2533,7 @@ var lastTele = 0;
 function frameLoop(t) { drawView(); updateTwin(); if (!lastTele || t - lastTele > 250) { lastTele = t || 1; updateTele(); updateDockMini(); } requestAnimationFrame(frameLoop); }
 buildUI(); readLoop(); requestAnimationFrame(frameLoop);
 logEvent('pronto · base ' + L.board.w + '×' + L.board.h + ' mm · ' + (S.hand == 'right' ? 'destrimano' : 'mancino'));
-window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, _dbg: function (f) { return f({ get stripCands() { return stripCands; }, planeSize: planeSize, toPlane: toPlane, get sheetCorners() { return sheetCorners; }, refineQuad1: refineQuad1, get refineDbg() { return refineDbg; }, lastShapes: lastShapes, detectSheet: detectSheet, tplScore: tplScore, tplRegister: tplRegister, mxNormalize: mxNormalize, lastTplTry: lastTplTry, sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV, midiOf: midiOf, contMidi: contMidi }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
+window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, _dbg: function (f) { return f({ get stripCands() { return stripCands; }, planeSize: planeSize, toPlane: toPlane, get sheetCorners() { return sheetCorners; }, refineQuad1: refineQuad1, get refineDbg() { return refineDbg; }, lastShapes: lastShapes, detectSheet: detectSheet, tplScore: tplScore, tplRegister: tplRegister, mxNormalize: mxNormalize, lastTplTry: lastTplTry, sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV, get excl() { return stripExcl; }, get cdbg() { return cdbg; }, get fitDbg() { return fitDbg; }, get refineLog() { return refineLog; }, expectedStrip: expectedStrip, get esd() { return expectedStrip.dbg; }, get stripMiss() { return stripMiss; }, get stripFound() { return stripFound; }, midiOf: midiOf, contMidi: contMidi }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
 })();
 </script>
 </body>
