@@ -22,7 +22,7 @@ Pagina separata [v2.html](v2.html). A sinistra la visione del computer (camera, 
 Colonna comandi 70 × 325 a sinistra, foglio A4 orizzontale 297 × 210 in alto a destra, matrice 297 × 95 sotto (20 mm di spazio), 4 marker ArUco agli angoli. Base 497 × 445.
 
 ## Regole
-Altezza = nota (di base 3 ottave Do3–Do6, scala pentatonica; si cambia dal computer). Colore = strumento: nero basso, blu piano, rosso chitarra, giallo violino, verde flauto. Matrice, righe dall'alto: cassa (cerchio), battimani (triangolo), charleston (rombo), rullante (rettangolo).
+Altezza = nota (di base 3 ottave per strumento, contate sul pianoforte a 88 tasti: basso Do2–Do5, chitarra e piano Do3–Do6, flauto e violino Do4–Do7; scala pentatonica; si cambia dal computer). Colore = strumento: nero basso, blu piano, rosso chitarra, giallo violino, verde flauto. Matrice, righe dall'alto: cassa (cerchio), battimani (triangolo), charleston (rombo), rullante (rettangolo).
 
 ## Prova veloce: foglio A4 + matrice (senza base né marker)
 Il programma trova da solo il foglio A4 e la matrice dai loro bordi (retta su 28 punti per lato, a piena risoluzione). Il foglio A4 viene letto come 297 × 210. La matrice stampata si riconosce dalle proporzioni 4:1 (297 × 74,25) ed è divisa esattamente in 16 × 4 dai suoi bordi; dal modello si prende solo il verso (dritta o capovolta). Nella v2 ci sono tre pulsanti: Cerca tutti e due, Solo A4, Solo matrice. Se uno dei due è già agganciato si può ricercare solo l'altro, e ciascuno suona anche da solo.
