@@ -1496,7 +1496,7 @@ var OCT8 = [1, 0, 0, -1, -2]; /* flauto, violino, piano, chitarra, basso nella s
 var RANGES = { o3: [48, 36], o2: [60, 24], o4: [36, 48] };
 /* 3 ottave per strumento, contate sulle ottave del pianoforte a 88 tasti (Do2 = MIDI 36, Do4 = Do centrale = 60):
    basso 1a-2a-3a ottava (Do1–Do4) · chitarra e piano 3a-4a-5a (Do3–Do6) · flauto e violino 4a-5a-6a (Do4–Do7).
-   Stessa altezza sul foglio = stessa nota nell'ottava: il basso suona due ottave sotto flauto e violino e un'ottava sotto chitarra e piano. *
+   Stessa altezza sul foglio = stessa nota nell'ottava: il basso suona due ottave sotto flauto e violino e un'ottava sotto chitarra e piano. */
 var INST_BASE = { flute: 60, violin: 60, piano: 48, guitar: 48, bass: 24 };
 function rangeOf(n) { return S.sheet == 'inst' ? [INST_BASE[L.instruments[n.i].key], 36] : RANGES[S.sheet]; }
 function rawMidi(n) {
