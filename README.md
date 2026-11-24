@@ -15,6 +15,7 @@ Pagina separata [v2.html](v2.html). A sinistra la visione del computer (camera, 
 - Base 533 × 445: colonna comandi 70 × 325 (SPEED in alto, RESTART, START · STOP in basso), foglio A4, matrice 297 × 95, e un binario dei muti largo 36 mm a sinistra del foglio.
 - Muti: sportellini che coprono un bollino colorato (5 colori, in ordine di altezza) o nero (4 percussioni, accanto alla loro riga). Aperto = suona, chiuso = muto. La camera li legge.
 - Destrimano: comandi a destra. Mancino: comandi a sinistra. I marker restano negli stessi posti.
+- Lettura della matrice (base e striscia, stesso motore): la matrice viene raddrizzata, le ombre morbide si tolgono dividendo per il bianco della carta vicino, le righe della griglia vengono "ricucite" e ogni macchia vale un solo colpo nella casella dove cade il suo centro (un simbolo che sborda non diventa 2 o 3 colpi). Le macchie enormi (mano, ombra netta) lasciano ferme solo le caselle che coprono, che si vedono grigie. Ogni casella cambia solo se lo vede per 2 letture di fila. Camera e cartone mostrano lo stesso stato confermato; un cerchio tratteggiato sulla camera vuol dire "visto, in conferma".
 
 ## Base v1
 Colonna comandi 70 × 325 a sinistra, foglio A4 orizzontale 297 × 210 in alto a destra, matrice 297 × 95 sotto (20 mm di spazio), 4 marker ArUco agli angoli. Base 497 × 445.

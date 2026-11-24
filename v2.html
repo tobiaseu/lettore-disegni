@@ -683,34 +683,7 @@ function readSheet() {
   }
 }
 
-/* ---------------- lettura della matrice ---------------- */
-var prevRaw = null;
-function readMatrix() {
-  var M = L.matrix, cw = M.w / M.cols, rh = M.h / M.rows, samples = [], i, j, a, b;
-  for (i = 0; i < M.rows; i++) for (j = 0; j < M.cols; j++) for (a = -1; a <= 1; a += 2) { var sm = rgbAt(M.x + j * cw + cw * .5 + a * cw * .38, M.y + i * rh + rh * .5 + a * rh * .38); if (sm) samples.push(sm); }
-  if (samples.length < 40) return;
-  wbMatrix = whiteOf(samples);
-  var now = [], changed = 0;
-  for (i = 0; i < M.rows; i++) {
-    now.push([]);
-    for (j = 0; j < M.cols; j++) {
-      var hits = 0, tot = 0;
-      for (a = -1; a <= 1; a++) for (b = -1; b <= 1; b++) {
-        var rgb = rgbAt(M.x + (j + .5 + a * .17) * cw, M.y + (i + .5 + b * .17) * rh);
-        if (!rgb) continue; tot++;
-        if (inkLevel(rgb, wbMatrix) > 0.42 - S.sens * 0.1) hits++;
-      }
-      var on = tot > 0 && hits >= 4; now[i].push(on); if (prevRaw && on != prevRaw[i][j]) changed++;
-    }
-  }
-  prevRaw = now;
-  if (changed > 10) { for (i = 0; i < M.rows; i++) gridPend[i].fill(0); return; } /* mano che passa: aspetto che si fermi */
-  for (i = 0; i < M.rows; i++) for (j = 0; j < M.cols; j++) {
-    var want = now[i][j];
-    if (want != grid[i][j]) { gridPend[i][j]++; if (gridPend[i][j] >= 2 && !S.freeze) { grid[i][j] = want; gridPend[i][j] = 0; } }
-    else gridPend[i][j] = 0;
-  }
-}
+/* (la lettura della matrice è nel motore più sotto, dopo la striscia) */
 
 /* ---------------- lettura dei comandi ---------------- */
 var padState = {}, knobState = {};
@@ -829,8 +802,11 @@ function detectSheet() {
   });
   lastShapes = shapes.map(function (q) { return { size: q.size, aspect: +q.aspect.toFixed(2), fill: +q.fill.toFixed(2), th: q.th }; });
   shapes = shapes.filter(function (q) { return q.fill > 0.75 && q.fill < 1.3; }).sort(function (a, b) { return b.size - a.size; });
-  var sheetQ = shapes.filter(function (q) { return q.aspect > 1.15 && q.aspect < 1.8 && q.size > n * 0.04; })[0];
   var stripQ = shapes.filter(function (q) { return q.aspect > 2.2 && q.aspect < 7; })[0];
+  /* un pezzo della striscia non è il foglio: scarto i candidati il cui centro cade dentro la striscia */
+  function inside(c, pt) { var xs = c.map(function (p) { return p[0]; }), ys = c.map(function (p) { return p[1]; }); return pt[0] > Math.min.apply(null, xs) && pt[0] < Math.max.apply(null, xs) && pt[1] > Math.min.apply(null, ys) && pt[1] < Math.max.apply(null, ys); }
+  function ctr(c) { return [(c[0][0] + c[2][0]) / 2, (c[0][1] + c[2][1]) / 2]; }
+  var sheetQ = shapes.filter(function (q) { return q.aspect > 1.15 && q.aspect < 1.8 && q.size > n * 0.04 && !(stripQ && (inside(stripQ.c, ctr(q.c)) || inside(q.c, ctr(stripQ.c)))); })[0];
   stripFound = stripQ ? stripQ.c : null;
   return sheetQ ? sheetQ.c : null;
 }
@@ -846,7 +822,7 @@ function findSheet() { sheetLock = false; sheetCand = null; sheetCandN = 0; H = 
 /* La striscia viene raddrizzata in un'immagine SU x SV (lato lungo = tempo).
    Sulla griglia stampata trovo le 17 righe del tempo e le 5 righe dei canali.
    L'intestazione (la casella in più con i 4 simboli) dice da che parte comincia il tempo. */
-var lastCellDbg = [], SU = 720, SV = 200, strip = null, stripCand = null, stripCandN = 0, lastStripTry = 0, stripFlip = false, stripCells = null;
+var lastCellDbg = [], SU = 720, SV = 200, stripMoveN = 0, lastStripTrack = 0, strip = null, stripCand = null, stripCandN = 0, lastStripTry = 0, stripFlip = false, stripCells = null;
 var SHAPE_DRUM = { rect: 'snare', diamond: 'hat', tri: 'clap', circle: 'kick' };
 var SHAPE_LETTER = { rect: 'R', diamond: 'H', tri: 'C', circle: 'K' };
 function drumIndex(key) { for (var i = 0; i < ND; i++) if (L.drums[i].key == key) return i; return -1; }
@@ -961,30 +937,186 @@ function setupStrip(c) {
   stripLines(G, g);
   strip = { c: c, H: Hs, g: g, header: [] };
   for (var j = 0; j < 4; j++) strip.header.push(cellShape(G, g.white, Math.max(0, g.us[0] - g.p), g.us[0], g.vs[j], g.vs[j + 1]));
+  mxInit(g, true, strip.header.map(function (h, j) { var d = h ? drumIndex(SHAPE_DRUM[h]) : -1; return d < 0 ? j : d; }));
+  MX.header = strip.header.slice();
+  readStrip();
   toast('Matrice trovata · simboli: ' + strip.header.map(function (h) { return h ? SHAPE_LETTER[h] : '?'; }).join(' '));
 }
-function readStrip() {
-  var G = sampleStrip(strip.H), g = strip.g, white = pct(G, .85), now = [], changed = 0, i, k, j;
-  for (i = 0; i < ND; i++) now.push(new Array(16).fill(false));
-  stripCells = [];
-  /* il suono di ogni riga lo decide il simbolo della legenda, aiutato dai simboli disegnati nella riga (voto) */
-  var cells = [], votes = [];
-  for (j = 0; j < 4; j++) { votes.push({}); if (strip.header[j]) votes[j][strip.header[j]] = 2.5; }
-  for (k = 0; k < 16; k++) for (j = 0; j < 4; j++) {
-    var sh = cellShape(G, white, g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1]);
-    if (sh) { cells.push([k, j, sh]); votes[j][sh] = (votes[j][sh] || 0) + 1; }
-  }
-  strip.rowShape = votes.map(function (vt, jj) { var b = null; for (var key in vt) if (!b || vt[key] > vt[b]) b = key; return b || strip.header[jj]; });
-  cells.forEach(function (e) { var di = drumIndex(SHAPE_DRUM[strip.rowShape[e[1]] || e[2]]); if (di < 0) di = e[1]; now[di][e[0]] = true; });
-  stripCells = cells.map(function (e) { return [e[0], e[1], strip.rowShape[e[1]] || e[2]]; });
-  for (i = 0; i < ND; i++) for (k = 0; k < 16; k++) if (prevRaw && prevRaw[i] && now[i][k] != prevRaw[i][k]) changed++;
-  prevRaw = now;
-  if (changed > 10) { for (i = 0; i < ND; i++) gridPend[i].fill(0); return; }
-  for (i = 0; i < ND; i++) for (k = 0; k < 16; k++) {
-    if (now[i][k] != grid[i][k]) { gridPend[i][k]++; if (gridPend[i][k] >= 2 && !S.freeze) { grid[i][k] = now[i][k]; gridPend[i][k] = 0; } }
-    else gridPend[i][k] = 0;
-  }
+function mxRowShapes() { return MX ? MX.rowDrum.map(function (d) { return d >= 0 && L.drums[d] ? L.drums[d].shape : null; }) : [null, null, null, null]; }
+/* ---------------- motore di lettura della matrice (striscia disegnata e base con marker) ----------------
+   Una sola pipeline per tutte e due le modalità, così quello che si vede sulla camera è esattamente
+   quello che suona e che compare sul cartone:
+   1. raddrizzo la matrice in un'immagine SU x SV (lato lungo = tempo);
+   2. tolgo le ombre: divido ogni pixel per il "bianco della carta" lì vicino (massimo locale sfocato),
+      un'ombra è morbida e sparisce, un segno di matita o pennarello resta;
+   3. cancello le righe della griglia trovate all'aggancio, così non uniscono i simboli tra loro;
+   4. trovo le macchie con doppia soglia (seme scuro, crescita sul tratto più chiaro della matita);
+      ogni macchia vale UN colpo nella casella dove cade il suo centro, quindi un simbolo che sborda
+      non diventa 2-3 colpi; le macchie enormi (mano, ombra netta) congelano solo le colonne che coprono;
+   5. ogni casella ha un punteggio che cambia piano (isteresi): un fotogramma sbagliato non cambia niente. */
+var MX = null, mxBg = null, mxTmp = null, mxInk = null, mxLab = null, mxMask = null, mxH = null, mxG = null;
+function mxInit(g, legend, rowDrum) {
+  MX = { g: g, legend: legend, rowDrum: rowDrum || [0, 1, 2, 3], on: [], score: [], raw: [], rawShape: [], legShape: [null, null, null, null],
+    blocked: [0, 1, 2, 3].map(function () { return new Array(16).fill(false); }), hand: false, fresh: true, cand: null, candN: 0, ms: 0, blobs: 0 };
+  for (var j = 0; j < 4; j++) { MX.on.push(new Array(16).fill(false)); MX.score.push(new Float32Array(16)); MX.raw.push(new Array(16).fill(false)); MX.rawShape.push(new Array(16).fill(null)); }
+  /* maschera: 1 = pixel da analizzare (dentro la griglia, lontano dalle righe) */
+  if (!mxMask) mxMask = new Uint8Array(SU * SV);
+  mxMask.fill(0);
+  var p = (g.us[16] - g.us[0]) / 16, q = (g.vs[4] - g.vs[0]) / 4, lu = Math.max(3, Math.round(p * .09)), lv = Math.max(3, Math.round(q * .09));
+  var u0 = Math.max(0, Math.round(legend ? g.us[0] - p : g.us[0])), u1 = Math.min(SU, Math.round(g.us[16])), v0 = Math.max(0, Math.round(g.vs[0])), v1 = Math.min(SV, Math.round(g.vs[4])), u, v;
+  for (v = v0; v < v1; v++) for (u = u0; u < u1; u++) mxMask[v * SU + u] = 1;
+  /* le righe esterne restano fuori; quelle interne vengono "ricucite" a ogni fotogramma (mxInpaint) */
+  for (v = 0; v < SV; v++) for (u = 0; u < SU; u++) if (u <= u0 + lu || u >= u1 - lu || v <= v0 + lv || v >= v1 - lv) mxMask[v * SU + u] = 0;
+  var inner = g.us.slice(legend ? 0 : 1, 16).map(Math.round), innerV = g.vs.slice(1, 4).map(Math.round);
+  MX.lines = { u: inner, v: innerV, lu: lu, lv: lv };
+  MX.p = p; MX.q = q; MX.u0 = u0; MX.u1 = u1; MX.v0 = v0; MX.v1 = v1;
 }
+/* tolgo le righe interne della griglia: ogni pixel della riga prende il valore interpolato tra i due lati.
+   Così una riga sparisce (carta da tutte e due le parti), un simbolo che la attraversa resta un pezzo unico
+   e anche un'ombra che attraversa più caselle resta una macchia unica (e viene riconosciuta come ombra) */
+function mxInpaint(G) {
+  var Ln = MX.lines, u, v, a, b, t, x;
+  Ln.u.forEach(function (x0) { a = Math.max(0, x0 - Ln.lu - 1); b = Math.min(SU - 1, x0 + Ln.lu + 1);
+    for (v = 0; v < SV; v++) { var ga = G[v * SU + a], gb = G[v * SU + b]; for (x = a + 1; x < b; x++) { t = (x - a) / (b - a); G[v * SU + x] = ga + (gb - ga) * t; } } });
+  Ln.v.forEach(function (y0) { a = Math.max(0, y0 - Ln.lv - 1); b = Math.min(SV - 1, y0 + Ln.lv + 1);
+    for (u = 0; u < SU; u++) { var ga = G[a * SU + u], gb = G[b * SU + u]; for (x = a + 1; x < b; x++) { t = (x - a) / (b - a); G[x * SU + u] = ga + (gb - ga) * t; } } });
+}
+/* inchiostro 0..1 senza ombre */
+function mxNormalize(G) {
+  var hw = SU >> 1, hh = SV >> 1, R = 9, B = 3, u, v, k, m, a;
+  if (!mxBg) { mxBg = new Float32Array(hw * hh); mxTmp = new Float32Array(hw * hh); mxInk = new Float32Array(SU * SV); mxLab = new Int32Array(SU * SV); }
+  for (v = 0; v < hh; v++) for (u = 0; u < hw; u++) { a = 2 * v * SU + 2 * u; mxBg[v * hw + u] = Math.max(G[a], G[a + 1], G[a + SU], G[a + SU + 1]); }
+  for (v = 0; v < hh; v++) for (u = 0; u < hw; u++) { m = 0; for (k = Math.max(0, u - R); k <= Math.min(hw - 1, u + R); k++) if (mxBg[v * hw + k] > m) m = mxBg[v * hw + k]; mxTmp[v * hw + u] = m; }
+  for (u = 0; u < hw; u++) for (v = 0; v < hh; v++) { m = 0; for (k = Math.max(0, v - R); k <= Math.min(hh - 1, v + R); k++) if (mxTmp[k * hw + u] > m) m = mxTmp[k * hw + u]; mxBg[v * hw + u] = m; }
+  for (v = 0; v < hh; v++) for (u = 0; u < hw; u++) { m = 0; for (k = Math.max(0, u - B); k <= Math.min(hw - 1, u + B); k++) m += mxBg[v * hw + k]; mxTmp[v * hw + u] = m / (Math.min(hw - 1, u + B) - Math.max(0, u - B) + 1); }
+  for (u = 0; u < hw; u++) for (v = 0; v < hh; v++) { m = 0; for (k = Math.max(0, v - B); k <= Math.min(hh - 1, v + B); k++) m += mxTmp[k * hw + u]; mxBg[v * hw + u] = m / (Math.min(hh - 1, v + B) - Math.max(0, v - B) + 1); }
+  for (v = 0; v < SV; v++) for (u = 0; u < SU; u++) { var b = Math.max(30, mxBg[Math.min(hh - 1, v >> 1) * hw + Math.min(hw - 1, u >> 1)]), x = 1 - G[v * SU + u] / b; mxInk[v * SU + u] = x < 0 ? 0 : x; }
+}
+function mxCol(u) { var us = MX.g.us; if (u < us[0]) return MX.legend ? -1 : null; for (var k = 0; k < 16; k++) if (u < us[k + 1]) return k; return null; }
+function mxRow(v) { var vs = MX.g.vs; for (var j = 0; j < 4; j++) if (v < vs[j + 1]) return v >= vs[0] ? j : null; return null; }
+/* forma di una maschera binaria w x h (1 = scuro): stesso criterio delle caselle (angoli pieni, riempimento) */
+function shapeOfMask(dark, w, h) {
+  var dk = new Uint8Array(w * h), x, y, xx, yy;
+  for (y = 0; y < h; y++) for (x = 0; x < w; x++) if (dark[y * w + x]) for (yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) for (xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) dk[yy * w + xx] = 1;
+  var out = new Uint8Array(w * h), st = [];
+  for (x = 0; x < w; x++) st.push(x, (h - 1) * w + x); for (y = 0; y < h; y++) st.push(y * w, y * w + w - 1);
+  while (st.length) { var k = st.pop(); if (out[k] || dk[k]) continue; out[k] = 1; var kx = k % w, ky = (k / w) | 0;
+    if (kx > 0) st.push(k - 1); if (kx < w - 1) st.push(k + 1); if (ky > 0) st.push(k - w); if (ky < h - 1) st.push(k + w); }
+  var area = 0, bx0 = w, bx1 = -1, by0 = h, by1 = -1, cx = 0, cy = 0;
+  for (y = 0; y < h; y++) for (x = 0; x < w; x++) if (!out[y * w + x]) { area++; cx += x; cy += y; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+  var bw = bx1 - bx0 + 1, bh = by1 - by0 + 1; if (bw < 4 || bh < 4) return null;
+  cx /= area; cy /= area;
+  var fill = area / (bw * bh), off = Math.max(Math.abs(cx - (bx0 + bx1) / 2) / bw, Math.abs(cy - (by0 + by1) / 2) / bh);
+  var full = 0, cwid = Math.max(2, Math.round(bw * .16)), chei = Math.max(2, Math.round(bh * .16));
+  [[bx0, by0], [bx1 - cwid + 1, by0], [bx0, by1 - chei + 1], [bx1 - cwid + 1, by1 - chei + 1]].forEach(function (c0) {
+    var f = 0; for (var y2 = 0; y2 < chei; y2++) for (var x2 = 0; x2 < cwid; x2++) if (!out[(c0[1] + y2) * w + c0[0] + x2]) f++;
+    if (f > cwid * chei * .5) full++;
+  });
+  if (full >= 3) return 'rect';
+  if (fill > .76) return 'circle';
+  return full == 2 || off > .07 ? 'tri' : 'diamond';
+}
+/* analizza un fotogramma raddrizzato e aggiorna lo stato confermato */
+function mxRead(G) {
+  var t0 = performance.now(), g = MX.g, p = MX.p, q = MX.q, cellA = p * q, hi = .30 - S.sens * .08, lo = .15 - S.sens * .05;
+  mxInpaint(G); mxNormalize(G);
+  var ink = mxInk, lab = mxLab, mask = mxMask, u, v, i, j, k;
+  lab.fill(0);
+  var comps = [], stack = [], uL = MX.legend ? g.us[0] : -1; /* la legenda spesso è a matita leggera: soglia più bassa */
+  for (v = MX.v0; v < MX.v1; v++) for (u = MX.u0; u < MX.u1; u++) {
+    i = v * SU + u; if (lab[i] || !mask[i] || ink[i] < (u < uL ? hi * .6 : hi)) continue;
+    var id = comps.length + 1, c = { id: id, n: 0, s: 0, su: 0, sv: 0, a0: u, a1: u, b0: v, b1: v }; comps.push(c);
+    lab[i] = id; stack.length = 0; stack.push(i);
+    while (stack.length) {
+      var e = stack.pop(), x = e % SU, y = (e / SU) | 0; c.n++; c.s += ink[e]; c.su += x; c.sv += y;
+      if (x < c.a0) c.a0 = x; if (x > c.a1) c.a1 = x; if (y < c.b0) c.b0 = y; if (y > c.b1) c.b1 = y;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+        var nx = x + dx, ny = y + dy; if (nx < MX.u0 || nx >= MX.u1 || ny < MX.v0 || ny >= MX.v1) continue;
+        var f = ny * SU + nx; if (!lab[f] && mask[f] && ink[f] >= lo) { lab[f] = id; stack.push(f); }
+      }
+    }
+  }
+  /* raggruppo le macchie per casella */
+  var nBigC = 0, cells = {}, blocked = [];
+  for (j = 0; j < 4; j++) blocked.push(new Array(16).fill(false));
+  comps.forEach(function (c) {
+    var w = c.a1 - c.a0 + 1, h = c.b1 - c.b0 + 1;
+    if (w > p * 1.6 || h > q * 1.6 || c.n > cellA * 1.3) { c.big = true; nBigC++; return; } /* mano o ombra netta */
+    if (c.n < cellA * .03) return;
+    var kc = mxCol(c.su / c.n), jc = mxRow(c.sv / c.n); if (kc == null || jc == null) return;
+    var key = kc + ',' + jc, cl = cells[key] || (cells[key] = { k: kc, j: jc, ids: [], n: 0, s: 0, a0: 1e9, a1: -1, b0: 1e9, b1: -1 });
+    cl.ids.push(c.id); cl.n += c.n; cl.s += c.s; cl.a0 = Math.min(cl.a0, c.a0); cl.a1 = Math.max(cl.a1, c.a1); cl.b0 = Math.min(cl.b0, c.b0); cl.b1 = Math.max(cl.b1, c.b1);
+  });
+  var raw = [], rawShape = [];
+  for (j = 0; j < 4; j++) { raw.push(new Array(16).fill(false)); rawShape.push(new Array(16).fill(null)); }
+  var legShape = [null, null, null, null];
+  Object.keys(cells).forEach(function (key) {
+    var cl = cells[key], w = cl.a1 - cl.a0 + 1, h = cl.b1 - cl.b0 + 1;
+    /* un simbolo vero è grande almeno un terzo della casella in tutte e due le direzioni e abbastanza scuro;
+       un pezzetto di simbolo che sborda oltre la riga è sottile e viene scartato */
+    if (w < p * .3 || h < q * .3 || cl.n < cellA * .06 || cl.s / cl.n < (cl.k < 0 ? .16 : .3)) return;
+    var dark = new Uint8Array(w * h), ids = {}; cl.ids.forEach(function (x) { ids[x] = 1; });
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) if (ids[lab[(cl.b0 + y) * SU + cl.a0 + x]]) dark[y * w + x] = 1;
+    var sh = shapeOfMask(dark, w, h);
+    if (cl.k < 0) legShape[cl.j] = sh || 'circle';
+    else { raw[cl.j][cl.k] = true; rawShape[cl.j][cl.k] = sh; }
+  });
+  /* caselle toccate da una macchia enorme: restano come erano finché la mano o l'ombra non se ne va */
+  if (nBigC) {
+    var cnt = [], minPx = cellA * .04;
+    for (j = 0; j < 4; j++) cnt.push(new Float32Array(16));
+    for (v = MX.v0; v < MX.v1; v += 2) { var jj = mxRow(v); if (jj == null) continue;
+      for (u = MX.u0; u < MX.u1; u += 2) { var lb = lab[v * SU + u]; if (lb && comps[lb - 1].big) { var kk = mxCol(u); if (kk != null && kk >= 0) cnt[jj][kk] += 4; } } }
+    for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) if (cnt[j][k] > minPx) blocked[j][k] = true;
+  }
+  var nBig = 0; for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) if (blocked[j][k]) nBig++;
+  MX.raw = raw; MX.rawShape = rawShape; MX.blocked = blocked; MX.blobs = comps.length; MX.hand = nBig > 0;
+  /* suono di ogni riga: simbolo della legenda (peso 3) + simboli disegnati nella riga; cambia solo se stabile */
+  if (MX.legend) {
+    legShape.forEach(function (s, jj) { if (s) MX.legShape[jj] = s; });
+    var cand = [];
+    for (j = 0; j < 4; j++) {
+      var vt = {}, lg = legShape[j] || MX.legShape[j], hd = MX.header && MX.header[j]; if (lg) vt[lg] = 2.5; if (hd) vt[hd] = (vt[hd] || 0) + .6;
+      rawShape[j].forEach(function (s) { if (s) vt[s] = (vt[s] || 0) + 1; });
+      var b = null; for (var s2 in vt) if (!b || vt[s2] > vt[b]) b = s2;
+      var di = b ? drumIndex(SHAPE_DRUM[b]) : -1; cand.push(di < 0 ? MX.rowDrum[j] : di);
+    }
+    var sig = cand.join('');
+    if (sig == MX.cand) MX.candN++; else { MX.cand = sig; MX.candN = 1; }
+    if ((MX.fresh || MX.candN >= 5) && !S.freeze && !nBig) MX.rowDrum = cand;
+  }
+  /* conferma lenta con isteresi; le colonne coperte dalla mano restano come erano */
+  if (!S.freeze && nBig < 40) {
+    for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) {
+      if (blocked[j][k] && !MX.fresh) continue;
+      var xv = raw[j][k] ? 1 : 0, sc = MX.fresh ? xv : MX.score[j][k] * .5 + xv * .5;
+      MX.score[j][k] = sc;
+      if (!MX.on[j][k] && sc >= .74) MX.on[j][k] = true;
+      else if (MX.on[j][k] && sc <= .26) MX.on[j][k] = false;
+    }
+    MX.fresh = false;
+    mxToGrid();
+  }
+  MX.ms = MX.ms * .8 + (performance.now() - t0) * .2;
+}
+/* la griglia che suona (e che compare sul cartone) viene SOLO dallo stato confermato */
+function mxToGrid() {
+  for (var d = 0; d < ND; d++) grid[d].fill(false);
+  for (var j = 0; j < 4; j++) { var d2 = MX.rowDrum[j]; if (d2 == null || d2 < 0) continue; for (var k = 0; k < 16; k++) if (MX.on[j][k]) grid[d2][k] = true; }
+}
+/* base con marker: la matrice ha posizione nota, la raddrizzo dalla prospettiva della base */
+function readMatrix() {
+  var M = L.matrix, pts = [[M.x, M.y], [M.x + M.w, M.y], [M.x + M.w, M.y + M.h], [M.x, M.y + M.h]].map(function (b) { return proj(H, b[0], b[1]); });
+  mxH = homography([[0, 0], [SU, 0], [SU, SV], [0, SV]], pts);
+  if (!mxH) return;
+  if (!MX || MX.legend) {
+    var g = { us: [], vs: [] }; for (var k = 0; k <= 16; k++) g.us.push(k * SU / 16); for (var j = 0; j <= 4; j++) g.vs.push(j * SV / 4);
+    mxInit(g, false, [0, 1, 2, 3]);
+  }
+  mxRead(sampleStrip(mxH));
+}
+function readStrip() { mxRead(sampleStrip(strip.H)); }
+
 function stripPt(u, v) { return proj(strip.H, u, v); }
 
 /* ---------------- ciclo di lettura ---------------- */
@@ -1002,14 +1134,23 @@ function readLoop() {
         } else sheetCandN = 0;
       }
       /* la matrice si cerca finché non è trovata, anche dopo il foglio */
-      if (!strip && manualPts == null && t0 - lastStripTry > (sheetLock ? 900 : 300)) {
+      if (!strip && manualPts == null && t0 - lastStripTry > (sheetLock ? 600 : 250)) {
         lastStripTry = t0;
         if (sheetLock) detectSheet();
         if (stripFound) {
           var nearS = stripCand && stripFound.every(function (p, k) { return Math.hypot(p[0] - stripCand[k][0], p[1] - stripCand[k][1]) < frame.width / 80; });
           if (nearS) stripCandN++; else { stripCand = stripFound; stripCandN = 1; }
-          if (stripCandN >= (source == 'image' ? 1 : 3)) setupStrip(stripFound);
+          if (stripCandN >= (source == 'image' ? 1 : 2)) setupStrip(stripFound);
         } else stripCandN = 0;
+      }
+      /* striscia già agganciata: ogni 1,5 s controllo che non sia stata spostata (2 controlli di fila) */
+      else if (strip && manualPts == null && !S.freeze && t0 - lastStripTrack > 1500) {
+        lastStripTrack = t0; detectSheet();
+        if (stripFound) {
+          var tol = frame.width / 60, moved = [0, 2].every(function (rot) { return stripFound.some(function (p, k) { var o = strip.c[(k + rot) % 4]; return Math.hypot(p[0] - o[0], p[1] - o[1]) > tol; }); });
+          stripMoveN = moved ? stripMoveN + 1 : 0;
+          if (stripMoveN >= 2) { stripMoveN = 0; setupStrip(stripFound); logEvent('matrice spostata: riagganciata'); }
+        }
       }
       if (H) readSheet();
       if (strip) readStrip();
@@ -1312,23 +1453,35 @@ function shapeSvg(kind, size, color) { return '<svg viewBox="-5 -5 10 10" aria-h
 
 /* ---------------- visione computer ---------------- */
 var view = $('view'), vctx = view.getContext('2d');
-function drawStrip() {
-  var g = strip.g, lw = Math.max(2, view.width / 400), ph = playheadPos();
-  function quad(u0, u1, v0, v1, stroke, fill, w) {
-    var pts = [stripPt(u0, v0), stripPt(u1, v0), stripPt(u1, v1), stripPt(u0, v1)];
+/* sovrapposizione della matrice: disegna SOLO lo stato confermato (lo stesso che suona e che è sul cartone);
+   tratteggiato = visto ma ancora da confermare, grigio = colonna coperta dalla mano (resta com'era) */
+function drawMatrixOverlay(Hm) {
+  if (!MX || !Hm) return;
+  var g = MX.g, lw = Math.max(2, view.width / 400), ph = playheadPos(), P = function (u, v) { return proj(Hm, u, v); };
+  function quad(u0, u1, v0, v1, stroke, fill, w, dash) {
+    var pts = [P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)];
     vctx.beginPath(); pts.forEach(function (p, i) { if (i) vctx.lineTo(p[0], p[1]); else vctx.moveTo(p[0], p[1]); }); vctx.closePath();
-    if (fill) { vctx.fillStyle = fill; vctx.fill(); } if (stroke) { vctx.strokeStyle = stroke; vctx.lineWidth = w || lw; vctx.stroke(); }
+    if (fill) { vctx.fillStyle = fill; vctx.fill(); } if (stroke) { vctx.setLineDash(dash || []); vctx.strokeStyle = stroke; vctx.lineWidth = w || lw; vctx.stroke(); vctx.setLineDash([]); }
   }
+  var shapes = mxRowShapes(), r = Math.min(Math.hypot.apply(null, (function () { var a = P(g.us[0], g.vs[0]), b = P(g.us[1], g.vs[0]); return [a[0] - b[0], a[1] - b[1]]; })()), Math.hypot.apply(null, (function () { var a = P(g.us[0], g.vs[0]), b = P(g.us[0], g.vs[1]); return [a[0] - b[0], a[1] - b[1]]; })())) * .36;
   if (S.lay.zones) {
-    quad(0, SU, 0, SV, '#a98bff', null, lw * 1.5);
-    quad(Math.max(0, g.us[0] - g.p), g.us[0], g.vs[0], g.vs[4], null, 'rgba(122,60,255,.22)');
-    for (var k = 0; k < 16; k++) for (var j = 0; j < 4; j++) quad(g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1], 'rgba(169,139,255,.55)', null, lw * .5);
+    quad(MX.u0, g.us[16], g.vs[0], g.vs[4], '#a98bff', null, lw * 1.5);
+    if (MX.legend) quad(MX.u0, g.us[0], g.vs[0], g.vs[4], null, 'rgba(122,60,255,.22)');
+    for (var k = 0; k < 16; k++) for (var j = 0; j < 4; j++) quad(g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1], 'rgba(169,139,255,.5)', null, lw * .5);
+    for (k = 0; k < 16; k++) for (j = 0; j < 4; j++) if (MX.blocked[j][k]) quad(g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1], null, 'rgba(120,130,145,.5)');
   }
   if (S.lay.notes) {
-    (stripCells || []).forEach(function (e) { var c = stripPt((g.us[e[0]] + g.us[e[0] + 1]) / 2, (g.vs[e[1]] + g.vs[e[1] + 1]) / 2); vctx.fillStyle = 'rgba(122,60,255,.9)'; vctx.beginPath(); vctx.arc(c[0], c[1], view.width / 70, 0, 7); vctx.fill(); drawShape(vctx, e[2], c[0], c[1], view.width / 140, '#fff'); });
-    (strip.rowShape || strip.header).forEach(function (h, j) { var c = stripPt(Math.max(0, g.us[0] - g.p / 2), (g.vs[j] + g.vs[j + 1]) / 2); if (h) drawShape(vctx, h, c[0], c[1], view.width / 110, '#a98bff'); });
+    for (var j2 = 0; j2 < 4; j2++) {
+      var cy = (g.vs[j2] + g.vs[j2 + 1]) / 2;
+      for (var k2 = 0; k2 < 16; k2++) {
+        var c = P((g.us[k2] + g.us[k2 + 1]) / 2, cy), on = MX.on[j2][k2], raw = MX.raw[j2][k2];
+        if (on) { vctx.fillStyle = 'rgba(122,60,255,.92)'; vctx.beginPath(); vctx.arc(c[0], c[1], r, 0, 7); vctx.fill(); if (shapes[j2]) drawShape(vctx, shapes[j2], c[0], c[1], r * .5, '#fff'); }
+        if (on != raw && !MX.blocked[j2][k2]) { vctx.setLineDash([lw * 2, lw * 1.5]); vctx.strokeStyle = raw ? '#c8adff' : 'rgba(255,255,255,.75)'; vctx.lineWidth = lw; vctx.beginPath(); vctx.arc(c[0], c[1], r * 1.08, 0, 7); vctx.stroke(); vctx.setLineDash([]); }
+      }
+      if (MX.legend && shapes[j2]) { var cl = P((MX.u0 + g.us[0]) / 2, cy); drawShape(vctx, shapes[j2], cl[0], cl[1], r * .6, '#c8adff'); }
+    }
   }
-  if (ph != null) { var kk = Math.min(15, Math.floor(ph / 4)), u = g.us[kk] + (ph / 4 - kk) * (g.us[kk + 1] - g.us[kk]); quad(u - 3, u + 3, 0, SV, null, 'rgba(255,220,60,.6)'); }
+  if (ph != null) { var kk = Math.min(15, Math.floor(ph / 4)), u = g.us[kk] + (ph / 4 - kk) * (g.us[kk + 1] - g.us[kk]); quad(u - 3, u + 3, g.vs[0], g.vs[4], null, 'rgba(255,220,60,.6)'); }
 }
 function banner(msg) {
   vctx.fillStyle = 'rgba(8,10,13,.72)'; vctx.fillRect(0, view.height / 2 - 34, view.width, 68);
@@ -1348,7 +1501,7 @@ function drawView() {
     return;
   }
   if (!source) return;
-  if (S.mode == 'sheet' && strip) drawStrip();
+  if (S.mode == 'sheet' && strip) drawMatrixOverlay(strip.H);
   if (!H) { banner(S.mode == 'sheet' ? (strip ? 'striscia ok · cerco il foglio bianco…' : 'cerco il foglio bianco su fondo scuro…') : 'cerco i 4 marker agli angoli…'); return; }
   var lw = Math.max(2, view.width / 420);
   function poly(pts, stroke, fill, w, dash) { vctx.beginPath(); pts.forEach(function (p, i) { var q = proj(H, p[0], p[1]); if (i) vctx.lineTo(q[0], q[1]); else vctx.moveTo(q[0], q[1]); }); vctx.closePath(); if (fill) { vctx.fillStyle = fill; vctx.fill(); } if (stroke) { vctx.setLineDash(dash || []); vctx.strokeStyle = stroke; vctx.lineWidth = w || lw; vctx.stroke(); vctx.setLineDash([]); } }
@@ -1373,7 +1526,7 @@ function drawView() {
   if (S.lay.notes) committed.forEach(function (notes, c) { notes.forEach(function (n) { var q = proj(H, R.x + (c + .5) * cw, R.y + (1 - n.y) * R.h); vctx.beginPath(); vctx.arc(q[0], q[1], lw * 2.1, 0, 7); vctx.fillStyle = L.instruments[n.i].color; vctx.fill(); vctx.strokeStyle = '#fff'; vctx.lineWidth = lw * .6; vctx.stroke(); }); });
   if (S.mode == 'board') {
     var M = L.matrix, mw = M.w / 16, mh = M.h / 4;
-    if (S.lay.notes) for (var i = 0; i < ND; i++) for (var j = 0; j < 16; j++) if (grid[i][j]) circ(M.x + (j + .5) * mw, M.y + (i + .5) * mh, 5, '#fff', 'rgba(177,140,255,.5)', lw);
+    drawMatrixOverlay(mxH);
     if (S.camCtl) {
       Object.keys(L.pads).forEach(function (key) { var p = L.pads[key], st = padState[key]; circ(p.x, p.y, p.r, st && st.on ? '#ff5a1f' : 'rgba(61,220,132,.95)', st && st.on ? 'rgba(255,90,31,.35)' : null, lw); });
       var k = L.knobs.speed, a = lastKnobAngles.speed; circ(k.x, k.y, k.r, 'rgba(61,220,132,.95)', null, lw);
@@ -1616,7 +1769,7 @@ function updateTele() {
     var seen = {}; (lastSeenIds || []).forEach(function (id) { seen[id] = 1; });
     lock = 'marker ' + [0, 1, 2, 3].map(function (id) { return '<b class="' + (seen[id] ? 'ok' : 'bad') + '">' + id + '</b>'; }).join(' ') + ' · ' + mkCount + '/4<br>' + (H ? '<span class="ok">prospettiva ok</span>' + (mkCount ? '' : ' <span class="warn">(ultima buona)</span>') : '<span class="bad">nessuna prospettiva</span>');
   } else {
-    lock = 'foglio ' + (H ? '<b class="ok">trovato</b>' : manualPts ? '<b class="warn">angoli a mano</b>' : '<b class="bad">cerco</b>') + '<br>striscia ' + (strip ? '<b class="ok">trovata</b> ' + (strip.rowShape || strip.header).map(function (h) { return h ? shapeSvg(h, 11, '#e7ebf0') : '?'; }).join(' ') : '<b class="dim">non vista</b>');
+    lock = 'foglio ' + (H ? '<b class="ok">trovato</b>' : manualPts ? '<b class="warn">angoli a mano</b>' : '<b class="bad">cerco</b>') + '<br>striscia ' + (strip ? '<b class="ok">trovata</b> ' + mxRowShapes().map(function (h) { return h ? shapeSvg(h, 11, '#e7ebf0') : '?'; }).join(' ') : '<b class="dim">non vista</b>');
   }
   $('tLock').innerHTML = lock;
   var ph = playheadPos(), step = ph == null ? null : Math.min(16, Math.floor(ph / 4) + 1);
@@ -1635,7 +1788,7 @@ function updateTele() {
   $('tMutes').innerHTML = S.mode == 'board' && H && S.camCtl ? L.instruments.map(function (ins, i) { var v = railRead['c' + i]; return '<span title="' + ins.name + '" style="color:' + (v == null ? '#5b6370' : v ? ins.color == '#111111' ? '#e7ebf0' : ins.color : '#5b6370') + '">' + (v == null ? '?' : v ? '●' : '○') + '</span>'; }).join(' ') + '<br>' + L.drums.map(function (d, i) { var v = railRead['d' + i]; return '<span style="opacity:' + (v ? 1 : .35) + '">' + shapeSvg(d.shape, 11, '#e7ebf0') + '</span>'; }).join(' ') + '<br><span class="dim">● aperto = suona · ○ chiuso = muto</span>' : '<span class="dim">solo con la base in cartone</span>';
   var cur = step ? step - 1 : -1, act = 0, h = '';
   for (var i = 0; i < ND; i++) { h += shapeSvg(L.drums[i].shape, 11, S.muteD[i] ? '#5b6370' : '#e7ebf0'); for (var j = 0; j < 16; j++) { if (grid[i][j]) act++; h += '<i class="' + (grid[i][j] ? 'on' + (S.muteD[i] ? ' m' : '') : j == cur ? 'q' : '') + '"></i>'; } }
-  $('tMat').innerHTML = h; $('tMatN').textContent = act + ' colpi';
+  $('tMat').innerHTML = h; $('tMatN').textContent = act + ' colpi' + (MX ? ' · ' + MX.ms.toFixed(0) + ' ms' + (MX.hand ? ' · mano/ombra: caselle grigie ferme' : '') : '');
   $('tAudio').innerHTML = AC ? '<b class="' + (AC.state == 'running' ? 'ok' : 'warn') + '">' + AC.state + '</b> · ' + (AC.sampleRate / 1000).toFixed(1) + ' kHz<br>latenza ' + Math.round(((AC.baseLatency || 0) + (AC.outputLatency || 0)) * 1000) + ' ms · vol ' + Math.round(S.volume * 100) + '%' : '<span class="dim">si accende al primo comando</span>';
   var ca = $('chipAudio'); ca.className = 'chip ' + (AC && AC.state == 'running' ? 'ok' : 'warn'); ca.lastChild.textContent = AC && AC.state == 'running' ? 'audio attivo' : 'audio spento';
   $('hud').innerHTML = source ? '<span>' + (S.mode == 'board' ? 'MARKER ' + mkCount + '/4' : H ? 'FOGLIO OK' : 'FOGLIO ?') + '</span><span>' + (source == 'cam' ? fps.toFixed(0) + ' FPS' : 'FERMO') + '</span>' + (S.playing && step ? '<span>PASSO ' + step + '/16</span>' : '') : '';
@@ -1698,7 +1851,7 @@ function renderUI() {
 }
 function setHand(h) {
   if (S.hand == h) return;
-  S.hand = h; L = LAYOUT_V2(h); padState = {}; knobState = {}; railState = {}; railRead = {}; prevRaw = null;
+  S.hand = h; L = LAYOUT_V2(h); padState = {}; knobState = {}; railState = {}; railRead = {}; MX = null;
   saveTeacher(); buildTwin(); renderUI();
   logEvent(h == 'right' ? 'base girata: destrimano, comandi a destra' : 'base girata: mancino, comandi a sinistra');
   if (source == 'image' && srcLabel.indexOf('demo') == 0) loadDemo();
@@ -1777,7 +1930,7 @@ var lastTele = 0;
 function frameLoop(t) { drawView(); updateTwin(); if (!lastTele || t - lastTele > 250) { lastTele = t || 1; updateTele(); updateDockMini(); } requestAnimationFrame(frameLoop); }
 buildUI(); readLoop(); requestAnimationFrame(frameLoop);
 logEvent('pronto · base ' + L.board.w + '×' + L.board.h + ' mm · ' + (S.hand == 'right' ? 'destrimano' : 'mancino'));
-window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
+window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, _dbg: function (f) { return f({ sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
 })();
 </script>
 </body>
