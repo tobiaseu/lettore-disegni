@@ -353,7 +353,7 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
         <ul><li>Colonna comandi <b>70 × 325</b>: SPEED in alto, RESTART, START · STOP in basso (cerchi Ø 54).</li>
         <li>Binario muti <b>36 × 325</b> a sinistra del foglio, dove comincia il tempo.</li>
         <li>Foglio <b>A4 297 × 210</b>, letto 285 × 198 (6 mm di margine).</li>
-        <li>Matrice <b>297 × 95</b>, 20 mm sotto il foglio, griglia 4 × 16.</li>
+        <li>Matrice stampata <b>297 × 74,25</b> (striscia di A4, 16 × 4 caselle quadrate da 18,56 mm) dentro una base di cartone alta 95, 20 mm sotto il foglio.</li>
         <li>Destrimano: comandi a destra. Mancino: a sinistra. I marker non si spostano.</li></ul></div>
       <div class="card"><h3>Regole del suono</h3>
         <div class="legend" id="legendC"></div>
@@ -922,7 +922,22 @@ function colShapes(G, g, u0, u1) {
 function nShapes(a) { return a.filter(Boolean).length; }
 function setupStrip(c) {
   var src = [[0, 0], [SU, 0], [SU, SV], [0, SV]];
-  var Hs = homography(src, c), G = sampleStrip(Hs), g = stripGeometry(G);
+  var Hs = homography(src, c), G = sampleStrip(Hs);
+  /* prima provo la matrice stampata: se il modello combacia (in un verso o nell'altro) uso quella */
+  var G2 = new Float32Array(G); mxNormalize(G2);
+  var r = tplRegister(mxInk, [false, true]); lastTplTry = r;
+  /* proporzioni della carta: la striscia stampata è 297 x 74,25 (4:1), quella disegnata a mano di solito più corta */
+  var dd = function (a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }, asp = (dd(c[0], c[1]) + dd(c[3], c[2])) / Math.max(1, dd(c[0], c[3]) + dd(c[1], c[2]));
+  r.aspect = asp;
+  if (r.ratio > 2.2 || (r.ratio > 1.5 && asp > 3.6 && asp < 4.6)) {
+    if (r.flip) { c = [c[2], c[3], c[0], c[1]]; Hs = homography(src, c); G2 = sampleStrip(Hs); mxNormalize(G2); r = tplRegister(mxInk, [false], 6, { dx: r.dx, dy: r.dy, sy: r.sy }); }
+    MX = null; strip = { c: c, H: Hs, g: tplGrid(r), header: [], tpl: true };
+    tplInit(r); readStrip();
+    toast('Matrice stampata trovata · ' + (r.ratio > 3 ? 'aggancio sicuro' : 'aggancio ok'));
+    logEvent('matrice stampata agganciata · spostamento ' + r.dx + ',' + r.dy + ' px · altezza ×' + r.sy + ' · contrasto ' + r.ratio.toFixed(1));
+    return;
+  }
+  var g = stripGeometry(G);
   /* le righe trovate possono essere spostate di una casella (bordo della carta o riga dell'intestazione):
      provo anche uno spostamento di ±1 e tengo la posizione in cui la casella in più contiene i simboli */
   var best = null;
@@ -1061,6 +1076,8 @@ function mxRead(G) {
     if (cl.k < 0) legShape[cl.j] = sh || 'circle';
     else { raw[cl.j][cl.k] = true; rawShape[cl.j][cl.k] = sh; }
   });
+  /* matrice stampata: decide l'interno delle forme del modello, non le macchie */
+  if (MX.tpl) { raw = tplCells(ink); for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) rawShape[j][k] = raw[j][k] ? L.drums[j].shape : null; }
   /* caselle toccate da una macchia enorme: restano come erano finché la mano o l'ombra non se ne va */
   if (nBigC) {
     var cnt = [], minPx = cellA * .04;
@@ -1088,7 +1105,7 @@ function mxRead(G) {
   /* conferma lenta con isteresi; le colonne coperte dalla mano restano come erano */
   if (!S.freeze && nBig < 40) {
     for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) {
-      if (blocked[j][k] && !MX.fresh) continue;
+      if (blocked[j][k]) { if (MX.fresh) { MX.score[j][k] = 0; MX.on[j][k] = false; } continue; } /* sotto la mano: resta com'era (all'aggancio: spenta) */
       var xv = raw[j][k] ? 1 : 0, sc = MX.fresh ? xv : MX.score[j][k] * .5 + xv * .5;
       MX.score[j][k] = sc;
       if (!MX.on[j][k] && sc >= .74) MX.on[j][k] = true;
@@ -1099,23 +1116,151 @@ function mxRead(G) {
   }
   MX.ms = MX.ms * .8 + (performance.now() - t0) * .2;
 }
+/* ---------------- matrice stampata (modello A4 · 297 x 74,25 mm · 16 x 4 caselle quadrate da 18,56 mm) ----------------
+   Righe dall'alto: cerchio = cassa, triangolo = battimani, rombo = charleston, rettangolo = rullante.
+   Ogni casella ha la forma tratteggiata: colorata di nero = suona. Barre piene ogni 4 passi.
+   Visto che il disegno è noto, la lettura non indovina niente: aggancio il modello sull'immagine
+   (spostamento, altezza e verso) e poi guardo solo l'interno di ogni forma. */
+var TPL = { w: 297, h: 74.25, cell: 297 / 16,
+  shapes: { circle: { w: 13.5, h: 13.5 }, tri: { w: 13.5, h: 11.8 }, diamond: { w: 7.9, h: 13.7 }, rect: { w: 8.5, h: 13.4 } } };
+/* contorno della forma del modello (mm, centro 0,0) */
+function tplPoly(kind) {
+  var d = TPL.shapes[kind], w = d.w / 2, h = d.h / 2, pts = [], a;
+  if (kind == 'circle') { for (a = 0; a < 48; a++) pts.push([w * Math.cos(a * Math.PI / 24), h * Math.sin(a * Math.PI / 24)]); }
+  else if (kind == 'tri') pts = [[0, -h], [w, h], [-w, h]];
+  else if (kind == 'diamond') pts = [[0, -h], [w, 0], [0, h], [-w, 0]];
+  else pts = [[-w, -h], [w, -h], [w, h], [-w, h]];
+  return pts;
+}
+function inPoly(pts, x, y) { var c = false; for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) { var a = pts[i], b = pts[j]; if ((a[1] > y) != (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; }
+var tplCache = null, lastTplTry = null;
+function tplData() {
+  if (tplCache) return tplCache;
+  var ku = SU / TPL.w, kv = SV / TPL.h, out = { inner: [], outline: [], ku: ku, kv: kv };
+  L.drums.forEach(function (d, j) {
+    var poly = tplPoly(d.shape), inn = [], x, y;
+    /* interno ridotto al 62%: il tratteggio del contorno resta fuori */
+    for (y = -7; y <= 7; y += .55) for (x = -7; x <= 7; x += .55) if (inPoly(poly, x / .62, y / .62)) inn.push([x * ku, y * kv]);
+    out.inner.push(inn);
+    var ol = []; for (var i = 0; i < poly.length; i++) { var a = poly[i], b = poly[(i + 1) % poly.length], n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / .7)); for (var t = 0; t < n; t++) ol.push([(a[0] + (b[0] - a[0]) * t / n) * ku, (a[1] + (b[1] - a[1]) * t / n) * kv]); }
+    out.outline.push(ol);
+  });
+  /* punti per l'aggancio: contorni di tutte le 64 forme + le 3 barre */
+  var reg = [];
+  for (var j = 0; j < 4; j++) for (var k = 0; k < 16; k++) out.outline[j].forEach(function (p, i) { if (i % 2 == 0) reg.push([(k + .5) * SU / 16 + p[0], (j + .5) * SV / 4 + p[1], j * 16 + k]); });
+  [4, 8, 12].forEach(function (k) { for (var v = SV * .04; v < SV * .96; v += 2) reg.push([k * SU / 16, v, -1]); });
+  out.reg = reg;
+  return (tplCache = out);
+}
+/* quanto il modello combacia con l'inchiostro per uno spostamento dato.
+   Conta solo i contorni tratteggiati delle caselle VUOTE (e le barre): le forme piene attirerebbero
+   l'aggancio fuori posto. L'inchiostro è limitato a .35 così ogni tratto pesa uguale. */
+function tplPt(R, dx, dy, sy, flip, ox, oy) {
+  var u = R[0] + dx + ox, v = (R[1] + oy - SV / 2) * sy + SV / 2 + dy;
+  if (flip) { u = SU - 1 - u; v = SV - 1 - v; }
+  u = Math.round(u); v = Math.round(v); return u < 0 || v < 0 || u >= SU || v >= SV ? -1 : v * SU + u;
+}
+function tplFilled(ink, dx, dy, sy, flip) {
+  var T = tplData(), full = new Uint8Array(64);
+  for (var j = 0; j < 4; j++) for (var k = 0; k < 16; k++) {
+    var inn = T.inner[j], d = 0, n = 0, cu = (k + .5) * SU / 16, cv = (j + .5) * SV / 4;
+    for (var i = 0; i < inn.length; i += 2) { var q = tplPt([cu + inn[i][0], cv + inn[i][1]], dx, dy, sy, flip, 0, 0); if (q < 0) continue; n++; if (ink[q] > .3) d++; }
+    full[j * 16 + k] = n && d / n > .25 ? 1 : 0;
+  }
+  return full;
+}
+function tplScore(ink, dx, dy, sy, flip, extra, full) {
+  var R = tplData().reg, s = 0, n = 0, ox = extra ? SU / 32 : 0, oy = extra ? SV / 8 : 0;
+  for (var i = 0; i < R.length; i++) {
+    if (full && R[i][2] >= 0 && full[R[i][2]]) continue;
+    var q = tplPt(R[i], dx, dy, sy, flip, ox, oy); if (q < 0) continue;
+    s += ink[q]; n++;
+  }
+  return n ? s / n : 0;
+}
+/* cerca l'aggancio migliore; win = ampiezza della ricerca in px */
+var tplInkR = null;
+/* inchiostro per l'aggancio: limitato a .35 e allargato di 1 px, così un tratteggio sottile non si perde per un pixel */
+function tplRegInk(ink) {
+  if (!tplInkR) tplInkR = new Float32Array(SU * SV);
+  var o = tplInkR, u, v;
+  for (v = 1; v < SV - 1; v++) for (u = 1; u < SU - 1; u++) { var i = v * SU + u, m = ink[i];
+    if (ink[i - 1] > m) m = ink[i - 1]; if (ink[i + 1] > m) m = ink[i + 1]; if (ink[i - SU] > m) m = ink[i - SU]; if (ink[i + SU] > m) m = ink[i + SU];
+    o[i] = m > .35 ? .35 : m; }
+  return o;
+}
+function tplRegister(ink0, flips, win, start) {
+  var ink = tplRegInk(ink0);
+  var b = { s: -1 }, s0 = start || { dx: 0, dy: 0, sy: 1 }, W = win || 16, sys = win && win < 8 ? [s0.sy] : [.94, .97, 1, 1.03, 1.06];
+  flips.forEach(function (fl) {
+    var full = tplFilled(ink0, s0.dx, s0.dy, s0.sy, fl);
+    sys.forEach(function (sy) {
+      for (var dx = s0.dx - W; dx <= s0.dx + W; dx += 2) for (var dy = s0.dy - W; dy <= s0.dy + W; dy += 2) {
+        var sc = tplScore(ink, dx, dy, sy, fl, false, full); if (sc > b.s) b = { s: sc, dx: dx, dy: dy, sy: sy, flip: fl, full: full };
+      }
+    });
+  });
+  /* rifinitura al pixel */
+  var r = b;
+  for (var ddx = -1; ddx <= 1; ddx++) for (var ddy = -1; ddy <= 1; ddy++) { var sc = tplScore(ink, b.dx + ddx, b.dy + ddy, b.sy, b.flip, false, b.full); if (sc > r.s) r = { s: sc, dx: b.dx + ddx, dy: b.dy + ddy, sy: b.sy, flip: b.flip, full: b.full }; }
+  r.base = tplScore(ink, r.dx, r.dy, r.sy, r.flip, true, r.full); r.ratio = r.s / Math.max(.004, r.base);
+  delete r.full;
+  return r;
+}
+/* griglia (bordi delle caselle) per un aggancio */
+function tplGrid(r) {
+  var g = { us: [], vs: [], o: r.dx, p: SU / 16, vo: 0, q: SV / 4 * r.sy };
+  for (var k = 0; k <= 16; k++) g.us.push(k * SU / 16 + r.dx);
+  for (var j = 0; j <= 4; j++) g.vs.push((j * SV / 4 - SV / 2) * r.sy + SV / 2 + r.dy);
+  g.vo = g.vs[0];
+  return g;
+}
+function tplInit(r) {
+  var keep = MX && MX.tpl ? MX : null;
+  mxInit(tplGrid(r), false, [0, 1, 2, 3]);
+  MX.tpl = true; MX.reg = r;
+  if (keep) { MX.on = keep.on; MX.score = keep.score; MX.fresh = false; }
+}
+/* stato grezzo di ogni casella: quanta parte dell'interno della forma è nera */
+function tplCells(ink, blocked) {
+  var T = tplData(), g = MX.g, sy = MX.reg.sy, th = .33 - S.sens * .08, raw = [], fills = [];
+  for (var j = 0; j < 4; j++) {
+    raw.push(new Array(16).fill(false)); fills.push(new Float32Array(16));
+    var cv = (g.vs[j] + g.vs[j + 1]) / 2, inn = T.inner[j];
+    for (var k = 0; k < 16; k++) {
+      var cu = (g.us[k] + g.us[k + 1]) / 2, dark = 0, n = 0;
+      for (var i = 0; i < inn.length; i++) { var u = Math.round(cu + inn[i][0]), v = Math.round(cv + inn[i][1] * sy); if (u < 0 || v < 0 || u >= SU || v >= SV) continue; n++; if (ink[v * SU + u] > th) dark++; }
+      var f = n ? dark / n : 0; fills[j][k] = f; raw[j][k] = f >= .42;
+    }
+  }
+  MX.fill = fills;
+  return raw;
+}
 /* la griglia che suona (e che compare sul cartone) viene SOLO dallo stato confermato */
 function mxToGrid() {
   for (var d = 0; d < ND; d++) grid[d].fill(false);
   for (var j = 0; j < 4; j++) { var d2 = MX.rowDrum[j]; if (d2 == null || d2 < 0) continue; for (var k = 0; k < 16; k++) if (MX.on[j][k]) grid[d2][k] = true; }
 }
-/* base con marker: la matrice ha posizione nota, la raddrizzo dalla prospettiva della base */
+/* base con marker: la matrice ha posizione nota; aggancio il modello stampato (il foglio può essere spostato di qualche mm) */
+var tplLastReg = 0;
 function readMatrix() {
   var M = L.matrix, pts = [[M.x, M.y], [M.x + M.w, M.y], [M.x + M.w, M.y + M.h], [M.x, M.y + M.h]].map(function (b) { return proj(H, b[0], b[1]); });
   mxH = homography([[0, 0], [SU, 0], [SU, SV], [0, SV]], pts);
   if (!mxH) return;
-  if (!MX || MX.legend) {
-    var g = { us: [], vs: [] }; for (var k = 0; k <= 16; k++) g.us.push(k * SU / 16); for (var j = 0; j <= 4; j++) g.vs.push(j * SV / 4);
-    mxInit(g, false, [0, 1, 2, 3]);
-  }
-  mxRead(sampleStrip(mxH));
+  var G = sampleStrip(mxH);
+  if (!MX || !MX.tpl) { var G2 = new Float32Array(G); mxNormalize(G2); tplInit(tplRegister(mxInk, [false])); tplLastReg = performance.now(); }
+  else tplTrack(G);
+  mxRead(G);
 }
-function readStrip() { mxRead(sampleStrip(strip.H)); }
+/* ogni 1,5 s ricontrollo l'aggancio in una finestra piccola (foglio urtato, base mossa) */
+function tplTrack(G) {
+  var now = performance.now(); if (now - tplLastReg < 1500 || S.freeze) return;
+  tplLastReg = now;
+  var G2 = new Float32Array(G); mxNormalize(G2);
+  var r = tplRegister(mxInk, [false], 4, MX.reg), cur = tplScore(tplInkR, MX.reg.dx, MX.reg.dy, MX.reg.sy, false, false, tplFilled(mxInk, MX.reg.dx, MX.reg.dy, MX.reg.sy, false));
+  if ((r.dx != MX.reg.dx || r.dy != MX.reg.dy) && r.s > cur * 1.08) tplInit(r);
+}
+function readStrip() { var G = sampleStrip(strip.H); if (MX && MX.tpl) tplTrack(G); mxRead(G); }
 
 function stripPt(u, v) { return proj(strip.H, u, v); }
 
@@ -1148,7 +1293,10 @@ function readLoop() {
         lastStripTrack = t0; detectSheet();
         if (stripFound) {
           var tol = frame.width / 60, moved = [0, 2].every(function (rot) { return stripFound.some(function (p, k) { var o = strip.c[(k + rot) % 4]; return Math.hypot(p[0] - o[0], p[1] - o[1]) > tol; }); });
-          stripMoveN = moved ? stripMoveN + 1 : 0;
+          /* una striscia tagliata a metà da un'ombra o da una mano ha un'area diversa: non è uno spostamento */
+          var area = function (q) { var a = 0; for (var i = 0; i < 4; i++) { var p1 = q[i], p2 = q[(i + 1) % 4]; a += p1[0] * p2[1] - p2[0] * p1[1]; } return Math.abs(a / 2); };
+          var ar = area(stripFound) / Math.max(1, area(strip.c));
+          stripMoveN = moved && ar > .85 && ar < 1.18 ? stripMoveN + 1 : 0;
           if (stripMoveN >= 2) { stripMoveN = 0; setupStrip(stripFound); logEvent('matrice spostata: riagganciata'); }
         }
       }
@@ -1441,15 +1589,21 @@ function readRails() {
 }
 
 /* ---------------- forme e ordine percussioni ---------------- */
-function drawShape(c, kind, cx, cy, r, fill) {
-  c.fillStyle = fill; c.beginPath();
-  if (kind == 'circle') c.arc(cx, cy, r * .9, 0, 7);
-  else if (kind == 'tri') { c.moveTo(cx - r * .8, cy - r); c.lineTo(cx + r, cy); c.lineTo(cx - r * .8, cy + r); c.closePath(); }
-  else if (kind == 'diamond') { c.moveTo(cx, cy - r); c.lineTo(cx + r, cy); c.lineTo(cx, cy + r); c.lineTo(cx - r, cy); c.closePath(); }
-  else c.rect(cx - r * .85, cy - r * .62, r * 1.7, r * 1.24);
-  c.fill();
+function drawShape(c, kind, cx, cy, r, fill, stroke) { /* r = metà dell'altezza della forma, proporzioni del modello */
+  var sc = r / 6.85; c.beginPath();
+  if (kind == 'circle') c.arc(cx, cy, 6.75 * sc, 0, 7);
+  else tplPoly(kind).forEach(function (p, i) { if (i) c.lineTo(cx + p[0] * sc, cy + p[1] * sc); else c.moveTo(cx + p[0] * sc, cy + p[1] * sc); });
+  c.closePath();
+  if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.stroke(); }
 }
-function shapeSvg(kind, size, color) { return '<svg viewBox="-5 -5 10 10" aria-hidden="true" width="' + size + '" height="' + size + '">' + BOARD.shape(kind, 0, 0, 4.2, color || 'currentColor') + '</svg>'; }
+/* forme con le stesse proporzioni del modello stampato (sc = scala mm -> unità) */
+function tplShapeSvg(kind, cx, cy, sc, fill, stroke, sw, dash) {
+  var pts = tplPoly(kind).map(function (p) { return r2(cx + p[0] * sc) + ' ' + r2(cy + p[1] * sc); });
+  var a = ' fill="' + fill + '"' + (stroke ? ' stroke="' + stroke + '" stroke-width="' + sw + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') : '');
+  if (kind == 'circle') return '<circle cx="' + r2(cx) + '" cy="' + r2(cy) + '" r="' + r2(TPL.shapes.circle.w / 2 * sc) + '"' + a + '/>';
+  return '<path d="M' + pts.join('L') + 'Z"' + a + '/>';
+}
+function shapeSvg(kind, size, color) { return '<svg viewBox="-7.5 -7.5 15 15" aria-hidden="true" width="' + size + '" height="' + size + '">' + tplShapeSvg(kind, 0, 0, 1, color || 'currentColor') + '</svg>'; }
 
 /* ---------------- visione computer ---------------- */
 var view = $('view'), vctx = view.getContext('2d');
@@ -1467,7 +1621,11 @@ function drawMatrixOverlay(Hm) {
   if (S.lay.zones) {
     quad(MX.u0, g.us[16], g.vs[0], g.vs[4], '#a98bff', null, lw * 1.5);
     if (MX.legend) quad(MX.u0, g.us[0], g.vs[0], g.vs[4], null, 'rgba(122,60,255,.22)');
-    for (var k = 0; k < 16; k++) for (var j = 0; j < 4; j++) quad(g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1], 'rgba(169,139,255,.5)', null, lw * .5);
+    if (MX.tpl) { /* il modello agganciato: se queste forme cadono sulle forme stampate, la lettura è allineata */
+      vctx.lineWidth = lw * .6;
+      for (var k = 0; k < 16; k++) for (var j = 0; j < 4; j++) { var cc = P((g.us[k] + g.us[k + 1]) / 2, (g.vs[j] + g.vs[j + 1]) / 2); drawShape(vctx, L.drums[j].shape, cc[0], cc[1], r * 1.02, null, 'rgba(169,139,255,.7)'); }
+      [4, 8, 12].forEach(function (kb) { quad(g.us[kb] - 1, g.us[kb] + 1, g.vs[0], g.vs[4], null, 'rgba(169,139,255,.6)'); });
+    } else for (var k = 0; k < 16; k++) for (var j = 0; j < 4; j++) quad(g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1], 'rgba(169,139,255,.5)', null, lw * .5);
     for (k = 0; k < 16; k++) for (j = 0; j < 4; j++) if (MX.blocked[j][k]) quad(g.us[k], g.us[k + 1], g.vs[j], g.vs[j + 1], null, 'rgba(120,130,145,.5)');
   }
   if (S.lay.notes) {
@@ -1475,7 +1633,8 @@ function drawMatrixOverlay(Hm) {
       var cy = (g.vs[j2] + g.vs[j2 + 1]) / 2;
       for (var k2 = 0; k2 < 16; k2++) {
         var c = P((g.us[k2] + g.us[k2 + 1]) / 2, cy), on = MX.on[j2][k2], raw = MX.raw[j2][k2];
-        if (on) { vctx.fillStyle = 'rgba(122,60,255,.92)'; vctx.beginPath(); vctx.arc(c[0], c[1], r, 0, 7); vctx.fill(); if (shapes[j2]) drawShape(vctx, shapes[j2], c[0], c[1], r * .5, '#fff'); }
+        if (on && MX.tpl) drawShape(vctx, shapes[j2], c[0], c[1], r * 1.02, 'rgba(122,60,255,.92)');
+        else if (on) { vctx.fillStyle = 'rgba(122,60,255,.92)'; vctx.beginPath(); vctx.arc(c[0], c[1], r, 0, 7); vctx.fill(); if (shapes[j2]) drawShape(vctx, shapes[j2], c[0], c[1], r * .5, '#fff'); }
         if (on != raw && !MX.blocked[j2][k2]) { vctx.setLineDash([lw * 2, lw * 1.5]); vctx.strokeStyle = raw ? '#c8adff' : 'rgba(255,255,255,.75)'; vctx.lineWidth = lw; vctx.beginPath(); vctx.arc(c[0], c[1], r * 1.08, 0, 7); vctx.stroke(); vctx.setLineDash([]); }
       }
       if (MX.legend && shapes[j2]) { var cl = P((MX.u0 + g.us[0]) / 2, cy); drawShape(vctx, shapes[j2], cl[0], cl[1], r * .6, '#c8adff'); }
@@ -1589,10 +1748,10 @@ function twStatic() {
   });
   /* matrice di carta sulla sua base */
   s += '<g filter="url(#twSh2)"><rect x="' + MC.x + '" y="' + MC.y + '" width="' + MC.w + '" height="' + MC.h + '" fill="' + PAPER + '"/></g>';
-  var cw = M.w / 16, rh = M.h / 4, j, i;
-  s += '<rect x="' + M.x + '" y="' + M.y + '" width="' + M.w + '" height="' + M.h + '" fill="none" stroke="#222" stroke-width=".5"/>';
-  for (j = 1; j < 16; j++) s += '<line x1="' + r2(M.x + j * cw) + '" x2="' + r2(M.x + j * cw) + '" y1="' + M.y + '" y2="' + (M.y + M.h) + '" stroke="' + (j % 4 ? '#bdbdbd' : '#222') + '" stroke-width="' + (j % 4 ? .3 : .5) + '"/>';
-  for (i = 1; i < 4; i++) s += '<line x1="' + M.x + '" x2="' + (M.x + M.w) + '" y1="' + r2(M.y + i * rh) + '" y2="' + r2(M.y + i * rh) + '" stroke="#bdbdbd" stroke-width=".3"/>';
+  /* come il modello stampato: forme tratteggiate e una barra ogni 4 passi, niente griglia */
+  var cw = M.w / 16, rh = M.h / 4, j, i, sc = M.h / TPL.h;
+  for (j = 4; j < 16; j += 4) s += '<line x1="' + r2(M.x + j * cw) + '" x2="' + r2(M.x + j * cw) + '" y1="' + r2(M.y + 2.5 * sc) + '" y2="' + r2(M.y + M.h - 2.5 * sc) + '" stroke="#222" stroke-width=".35"/>';
+  for (i = 0; i < 4; i++) for (j = 0; j < 16; j++) s += tplShapeSvg(L.drums[i].shape, M.colX(j), M.rowY(i), sc, 'none', '#8a8a8a', .25, '.9 .7');
   /* binario: etichette stampate dei colori */
   L.muteC.forEach(function (m) {
     var ins = L.instruments[m.i];
@@ -1603,7 +1762,7 @@ function twStatic() {
   s += txt(RL.x + RL.w / 2, RL.y + 210 + 7.5, 'MUTO', 3, { c: 'rgba(80,55,30,.7)', w: 700, ls: .8 });
   L.muteD.forEach(function (m) {
     var d = L.drums[m.i];
-    s += BOARD.shape(d.shape, m.icon.x, m.icon.y - 2, 3.6, '#1b1b1b');
+    s += tplShapeSvg(d.shape, m.icon.x, m.icon.y - 2, .5, '#1b1b1b');
     s += txt(m.icon.x, m.icon.y + 6.4, d.name.toLowerCase(), 2.5, { c: INKBR, w: 600 });
     s += '<circle cx="' + m.x + '" cy="' + m.y + '" r="' + (m.r + 2.2) + '" fill="' + PAPER + '" stroke="#cbbfa9" stroke-width=".4"/>';
     s += '<circle cx="' + m.x + '" cy="' + m.y + '" r="' + m.r + '" fill="#141414"/>';
@@ -1643,7 +1802,7 @@ function twInk() {
 }
 function twTokens() {
   var M = L.matrix, s = '';
-  for (var i = 0; i < ND; i++) for (var j = 0; j < 16; j++) if (grid[i][j]) s += BOARD.shape(L.drums[i].shape, M.colX(j), M.rowY(i), 4.2, S.muteD[i] ? '#b9b4aa' : '#141414');
+  for (var i = 0; i < ND; i++) for (var j = 0; j < 16; j++) if (grid[i][j]) s += tplShapeSvg(L.drums[i].shape, M.colX(j), M.rowY(i), M.h / TPL.h, S.muteD[i] ? '#b9b4aa' : '#141414');
   return s;
 }
 function twFlaps(st) {
@@ -1684,7 +1843,7 @@ function buildTwin() {
   twin.setAttribute('viewBox', (-pad) + ' ' + (-pad) + ' ' + (L.board.w + 2 * pad) + ' ' + (L.board.h + 2 * pad));
   twin.innerHTML = twDefs() + twStatic() + '<g id="twDyn"></g><g id="twHead" style="display:none"><rect id="twGlow" x="0" y="0" width="10" height="10" fill="url(#twLed)"/><rect id="twCore" x="0" y="0" width="1.4" height="10" fill="#ffc21a"/></g>' + twHits();
   twDyn = $('twDyn'); twHead = $('twHead'); twSig = '';
-  $('twinMeta').textContent = 'base ' + L.board.w + ' × ' + L.board.h + ' mm · colonna 70 × 325 · A4 297 × 210 · matrice 297 × 95';
+  $('twinMeta').textContent = 'base ' + L.board.w + ' × ' + L.board.h + ' mm · colonna 70 × 325 · A4 297 × 210 · matrice stampata 297 × 74';
   bindTwin();
 }
 function updateTwin() {
@@ -1741,7 +1900,7 @@ function demoInk() {
 }
 function demoTokensV2() {
   var s = '', beat = BOARD.demoBeat;
-  beat.forEach(function (row, i) { row.forEach(function (on, j) { if (on) s += BOARD.shape(L.drums[i].shape, L.matrix.colX(j), L.matrix.rowY(i), 6, '#111'); }); });
+  beat.forEach(function (row, i) { row.forEach(function (on, j) { if (on) s += tplShapeSvg(L.drums[i].shape, L.matrix.colX(j), L.matrix.rowY(i), 1, '#111'); }); });
   return s;
 }
 function loadDemo() {
@@ -1930,7 +2089,7 @@ var lastTele = 0;
 function frameLoop(t) { drawView(); updateTwin(); if (!lastTele || t - lastTele > 250) { lastTele = t || 1; updateTele(); updateDockMini(); } requestAnimationFrame(frameLoop); }
 buildUI(); readLoop(); requestAnimationFrame(frameLoop);
 logEvent('pronto · base ' + L.board.w + '×' + L.board.h + ' mm · ' + (S.hand == 'right' ? 'destrimano' : 'mancino'));
-window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, _dbg: function (f) { return f({ sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
+window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, _dbg: function (f) { return f({ tplScore: tplScore, tplRegister: tplRegister, mxNormalize: mxNormalize, lastTplTry: lastTplTry, sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
 })();
 </script>
 </body>

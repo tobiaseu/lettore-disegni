@@ -2,7 +2,8 @@
    Misure in millimetri, origine nell'angolo in alto a sinistra della base.
 
    Moduli (dati da Tobia):
-     colonna comandi 70 x 325 · foglio A4 orizzontale 297 x 210 · matrice 297 x 95 (20 mm sotto il foglio)
+     colonna comandi 70 x 325 · foglio A4 orizzontale 297 x 210 · base matrice 95 mm (20 mm sotto il foglio)
+     con dentro la matrice stampata: striscia di A4 alta 74,25 mm, 16 x 4 caselle quadrate da 18,56 mm
    Aggiunto in v2: un binario dei muti largo 36 mm sul lato dove comincia il tempo (sinistra del foglio
    e della matrice). In alto 5 muti colore (ordinati per registro: flauto in alto, basso in basso),
    in basso 4 muti percussioni allineati alle righe della matrice.
@@ -36,8 +37,8 @@ function LAYOUT_V2(hand) {
     sheet: { x: sx, y: top, w: 297, h: 210 },
     read: { x: sx + 6, y: top + 6, w: 285, h: 198 },
     matrixBase: { x: railX, y: top + 230, w: RAIL + 297, h: 95 },
-    matrixCard: { x: sx, y: top + 230, w: 297, h: 95 },
-    matrix: { x: sx + 6, y: top + 236, w: 285, h: 83, rows: 4, cols: 16 },
+    matrixCard: { x: sx, y: top + 230 + (95 - 74.25) / 2, w: 297, h: 74.25 },
+    matrix: { x: sx, y: top + 230 + (95 - 74.25) / 2, w: 297, h: 74.25, rows: 4, cols: 16 },
     pads: {
       play:    { x: colX + COL / 2, y: top + 270, r: 27, name: 'START · STOP' },
       restart: { x: colX + COL / 2, y: top + 180, r: 27, name: 'RESTART' }

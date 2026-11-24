@@ -12,9 +12,10 @@ La fotocamera del telefono (o di un computer che usa il telefono come webcam) gu
 
 ## Versione 2 (workshop)
 Pagina separata [v2.html](v2.html). A sinistra la visione del computer (camera, zone lette, dati tecnici, registro eventi), a destra il prototipo in cartone interattivo, sotto le funzioni del prototipo e le funzioni secondarie.
-- Base 533 × 445: colonna comandi 70 × 325 (SPEED in alto, RESTART, START · STOP in basso), foglio A4, matrice 297 × 95, e un binario dei muti largo 36 mm a sinistra del foglio.
+- Base 533 × 445: colonna comandi 70 × 325 (SPEED in alto, RESTART, START · STOP in basso), foglio A4, base della matrice alta 95 con dentro la matrice stampata 297 × 74,25, e un binario dei muti largo 36 mm a sinistra del foglio.
 - Muti: sportellini che coprono un bollino colorato (5 colori, in ordine di altezza) o nero (4 percussioni, accanto alla loro riga). Aperto = suona, chiuso = muto. La camera li legge.
 - Destrimano: comandi a destra. Mancino: comandi a sinistra. I marker restano negli stessi posti.
+- Matrice stampata (modello in PDF): striscia di A4 alta 74,25 mm, 16 × 4 caselle quadrate da 18,56 mm, righe dall'alto cerchio (cassa), triangolo (battimani), rombo (charleston), rettangolo (rullante), forme tratteggiate e una barra ogni 4 passi. Una forma colorata di nero suona. Il programma aggancia il modello sulla foto (anche se la striscia è capovolta o spostata di qualche mm) e guarda solo l'interno di ogni forma: un tratto o uno scarabocchio dentro non basta, serve colorarla almeno per metà circa. Con una striscia disegnata a mano (con la legenda) usa la lettura a macchie qui sotto.
 - Lettura della matrice (base e striscia, stesso motore): la matrice viene raddrizzata, le ombre morbide si tolgono dividendo per il bianco della carta vicino, le righe della griglia vengono "ricucite" e ogni macchia vale un solo colpo nella casella dove cade il suo centro (un simbolo che sborda non diventa 2 o 3 colpi). Le macchie enormi (mano, ombra netta) lasciano ferme solo le caselle che coprono, che si vedono grigie. Ogni casella cambia solo se lo vede per 2 letture di fila. Camera e cartone mostrano lo stesso stato confermato; un cerchio tratteggiato sulla camera vuol dire "visto, in conferma".
 
 ## Base v1
