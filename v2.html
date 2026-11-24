@@ -271,7 +271,7 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
         </div>
         <div class="group" style="margin-top:12px">
           <span class="muted">lento</span>
-          <input type="range" id="rSpeed" min="50" max="160" step="1" value="90" aria-label="Velocità (SPEED)">
+          <input type="range" id="rSpeed" min="50" max="240" step="1" value="90" aria-label="Velocità (SPEED)">
           <span class="muted">veloce</span>
           <span class="val" id="vSpeed">90</span><span class="muted">bpm</span>
         </div>
@@ -1376,22 +1376,21 @@ function tplInit(r) {
   if (keep) { MX.on = keep.on; MX.score = keep.score; MX.fresh = false; }
 }
 /* stato grezzo di ogni casella: quanta parte dell'interno della forma è nera */
+/* Lettura a griglia quadrata: per ogni casella guardo il quadrato centrale (78% della casella, così le
+   caselle vicine restano fuori) e misuro quanti mm² sono neri. Suona se il nero vale almeno il 45%
+   della forma della sua riga: un rombo disegnato un po' più grande, storto o spostato suona lo stesso,
+   il tratteggio, un trattino o uno scarabocchio sottile no. */
+var TPL_AREA = { circle: Math.PI * 6.75 * 6.75, tri: 13.5 * 11.8 / 2, diamond: 7.9 * 13.7 / 2, rect: 8.5 * 13.4 };
 function tplCells(ink, blocked) {
-  var T = tplData(), g = MX.g, sy = MX.reg.sy, th = .25 - S.sens * .07, raw = [], fills = [];
-  /* piccola ricerca locale (±3,5 mm) per ogni casella: assorbe grandangolo, carta un po' curva e taglio impreciso */
-  var st = (g.us[16] - g.us[0]) / 16 * .047, sv = (g.vs[4] - g.vs[0]) / 4 * .047;
+  var g = MX.g, th = .25 - S.sens * .07, raw = [], fills = [], half = .39;
   for (var j = 0; j < 4; j++) {
     raw.push(new Array(16).fill(false)); fills.push(new Float32Array(16));
-    var cv0 = (g.vs[j] + g.vs[j + 1]) / 2, inn = T.inner[j];
+    var v0 = g.vs[j] + (g.vs[j + 1] - g.vs[j]) * (.5 - half), v1 = g.vs[j] + (g.vs[j + 1] - g.vs[j]) * (.5 + half), need = TPL_AREA[L.drums[j].shape] * (.45 + S.sens * -.1);
     for (var k = 0; k < 16; k++) {
-      var cu0 = (g.us[k] + g.us[k + 1]) / 2, best = 0;
-      for (var oy = -4; oy <= 4; oy += 2) for (var ox = -4; ox <= 4; ox += 2) {
-        var cu = cu0 + ox * st, cv = cv0 + oy * sv, dark = 0, n = 0;
-        for (var i = 0; i < inn.length; i += (ox || oy) ? 2 : 1) { var u = Math.round(cu + inn[i][0]), v = Math.round(cv + inn[i][1] * sy); if (u < 0 || v < 0 || u >= SU || v >= SV) continue; n++; if (ink[v * SU + u] > th) dark++; }
-        var f = n ? dark / n : 0; if (f > best) best = f;
-        if (best > .9) break;
-      }
-      fills[j][k] = best; raw[j][k] = best >= .45;
+      var u0 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 - half), u1 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 + half), dark = 0, n = 0;
+      for (var v = Math.max(0, Math.round(v0)); v < Math.min(SV, Math.round(v1)); v++) for (var u = Math.max(0, Math.round(u0)); u < Math.min(SU, Math.round(u1)); u++) { n++; if (ink[v * SU + u] > th) dark++; }
+      var mm2 = n ? dark / n * Math.pow(TPL.cell * half * 2, 2) : 0;
+      fills[j][k] = Math.min(1, mm2 / (need / .45)); raw[j][k] = mm2 >= need;
     }
   }
   MX.fill = fills;
