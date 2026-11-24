@@ -8,6 +8,8 @@ La fotocamera del telefono (o di un computer che usa il telefono come webcam) gu
 - **App v2 · interfaccia del workshop**: https://tobiaseu.github.io/lettore-disegni/v2.html (misure in [layout-v2.js](layout-v2.js))
 - **App v3 · nuova versione**: https://tobiaseu.github.io/lettore-disegni/v3.html (parte dalla v2, stesse misure in [layout-v2.js](layout-v2.js))
 - **App v4 · fogli A5 sul tappetino verde**: https://tobiaseu.github.io/lettore-disegni/v4.html (misure in [layout-v4.js](layout-v4.js))
+  - **Mixer** (pulsante arancio *Mixer* o tasto `M`): kit Studio, Hip hop, Reggaeton, House, Rap (suoni, EQ, tempo, swing e ritmo d'esempio), canali con volume, tono, riverbero, delay, pan, muto e solo, *slot main* con sorgente, inviluppo, filtro, movimento, EQ e dinamica, preset personali salvabili ed esportabili. Motore in [sound-v4.js](sound-v4.js).
+  - **Accordatura e lettura**: 12 tonalità, 13 scale, fasce uguali o tasti, giri di accordi (le note possono seguirli), casella della matrice da 1/4, 1/8 o 1/16, swing. Letture: *Note* (come prima), *Tratto* (il suono segue il segno: continuo, spessore = volume, un rombo in piedi si divide e si richiude), *Sonograf* (ogni altezza è un oscillatore, il nero decide il volume).
 - **Modello da stampare (A3, al 100%)**: [modello-A3.pdf](modello-A3.pdf) · sorgente [modello.html](modello.html)
 - **Cosa legge la camera**: [schema.html](https://tobiaseu.github.io/lettore-disegni/schema.html)
 - **Misure della base**: tutte in [layout.js](layout.js). Se cambi una misura, ristampa il modello.

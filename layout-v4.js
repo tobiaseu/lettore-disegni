@@ -39,7 +39,24 @@ function LAYOUT_V4(hand) {
     knobs: { speed: { x: cc, y: 50, r: 17, dot: 11, name: 'SPEED' } },
     speedRange: [50, 480], transposeRange: 6
   };
-  ['drums', 'instruments', 'scales'].forEach(function (k) { L[k] = LAYOUT[k]; });
+  ['drums', 'instruments'].forEach(function (k) { L[k] = LAYOUT[k]; });
+  /* scale della v4: le prime 5 sono quelle di sempre (stesso ordine), poi quelle per studiare i generi.
+     Gli intervalli sono contati dalla tonalità scelta nel mixer (Do se non la cambi). */
+  L.scales = [
+    { name: 'Sole', hint: 'pentatonica maggiore', color: '#F2A900', steps: [0, 2, 4, 7, 9] },
+    { name: 'Luna', hint: 'pentatonica minore', color: '#5B5BD6', steps: [0, 3, 5, 7, 10] },
+    { name: 'Arcobaleno', hint: 'maggiore', color: '#E0322A', steps: [0, 2, 4, 5, 7, 9, 11] },
+    { name: 'Pioggia', hint: 'minore naturale', color: '#2A8FBF', steps: [0, 2, 3, 5, 7, 8, 10] },
+    { name: 'Libero', hint: 'cromatica, tutti i tasti', color: '#777777', steps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+    { name: 'Blues', hint: 'minore con la blue note', color: '#1D4ED8', steps: [0, 3, 5, 6, 7, 10] },
+    { name: 'Dorica', hint: 'minore jazz, funk, house', color: '#16975A', steps: [0, 2, 3, 5, 7, 9, 10] },
+    { name: 'Misolidia', hint: 'maggiore rock e soul', color: '#E8B90C', steps: [0, 2, 4, 5, 7, 9, 10] },
+    { name: 'Frigia', hint: 'latina, reggaeton, trap', color: '#B4382E', steps: [0, 1, 3, 5, 7, 8, 10] },
+    { name: 'Minore armonica', hint: 'drammatica, rap', color: '#6B3FA0', steps: [0, 2, 3, 5, 7, 8, 11] },
+    { name: 'Lidia', hint: 'sognante, colonne sonore', color: '#4FB3D9', steps: [0, 2, 4, 6, 7, 9, 11] },
+    { name: 'Esatonale', hint: 'fiaba, sospesa', color: '#A0A0A0', steps: [0, 2, 4, 6, 8, 10] },
+    { name: 'Hirajoshi', hint: 'giapponese, come il Sonograf', color: '#D96C9C', steps: [0, 2, 3, 7, 8] }
+  ];
   L.matrix.rowY = function (i) { return L.matrix.y + (i + 0.5) * L.matrix.h / L.matrix.rows; };
   L.matrix.colX = function (j) { return L.matrix.x + (j + 0.5) * L.matrix.w / L.matrix.cols; };
   /* muti: colori a sinistra (dall'acuto in alto al grave in basso, come sul foglio), percussioni a destra (come le righe della matrice) */
