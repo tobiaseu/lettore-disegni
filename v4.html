@@ -1040,12 +1040,18 @@ function sampleStrip(Hs) {
   }
   /* il colore che tocca il bordo della striscia è il tappetino (angolo strappato): lo tratto come carta.
      Il colore chiuso dentro la carta è una forma colorata dai bambini: resta inchiostro (più è saturo, più è scuro) */
-  var st = [], sp = 0, k0;
-  for (u = 0; u < SU; u++) { if (ex[u] == 1) { ex[u] = 2; st[sp++] = u; } k0 = (SV - 1) * SU + u; if (ex[k0] == 1) { ex[k0] = 2; st[sp++] = k0; } }
-  for (v = 0; v < SV; v++) { k0 = v * SU; if (ex[k0] == 1) { ex[k0] = 2; st[sp++] = k0; } k0 += SU - 1; if (ex[k0] == 1) { ex[k0] = 2; st[sp++] = k0; } }
-  while (sp) { var kk = st[--sp], xx = kk % SU, yy = (kk / SU) | 0;
-    if (xx > 0 && ex[kk - 1] == 1) { ex[kk - 1] = 2; st[sp++] = kk - 1; } if (xx < SU - 1 && ex[kk + 1] == 1) { ex[kk + 1] = 2; st[sp++] = kk + 1; }
-    if (yy > 0 && ex[kk - SU] == 1) { ex[kk - SU] = 2; st[sp++] = kk - SU; } if (yy < SV - 1 && ex[kk + SU] == 1) { ex[kk + SU] = 2; st[sp++] = kk + SU; } }
+  /* ...ma una mano (pelle, manica colorata) entra anche lei dal bordo: se la zona colorata arriva in profondità dentro la
+     striscia (più di 40 px in tutte e due le direzioni) non è un angolo strappato ma una mano, e resta scura (= mano ferma) */
+  var st = [], sp = 0, k0, seeds = [], comp = [];
+  for (u = 0; u < SU; u++) { seeds.push(u, (SV - 1) * SU + u); } for (v = 0; v < SV; v++) { seeds.push(v * SU, v * SU + SU - 1); }
+  seeds.forEach(function (s0) {
+    if (ex[s0] != 1) return; ex[s0] = 2; st[0] = s0; sp = 1; comp.length = 0; var a0 = SU, a1 = 0, b0 = SV, b1 = 0;
+    while (sp) { var kk = st[--sp], xx = kk % SU, yy = (kk / SU) | 0; comp.push(kk);
+      if (xx < a0) a0 = xx; if (xx > a1) a1 = xx; if (yy < b0) b0 = yy; if (yy > b1) b1 = yy;
+      if (xx > 0 && ex[kk - 1] == 1) { ex[kk - 1] = 2; st[sp++] = kk - 1; } if (xx < SU - 1 && ex[kk + 1] == 1) { ex[kk + 1] = 2; st[sp++] = kk + 1; }
+      if (yy > 0 && ex[kk - SU] == 1) { ex[kk - SU] = 2; st[sp++] = kk - SU; } if (yy < SV - 1 && ex[kk + SU] == 1) { ex[kk + SU] = 2; st[sp++] = kk + SU; } }
+    if (Math.min(a1 - a0, b1 - b0) > 40 && comp.length > 3000) comp.forEach(function (q) { ex[q] = 3; });
+  });
   for (v = 0; v < SV * SU; v++) { if (ex[v] == 2) { G[v] = 255; ex[v] = 1; } else ex[v] = 0; }
   /* allargo la zona esclusa: il bordo misto carta/tappetino è grigio scuro e sembrerebbe inchiostro */
   var e2 = new Uint8Array(SU * SV), RR = 5, u2, v2;
@@ -1350,8 +1356,9 @@ function mxRead(G) {
     if (!MX.bAge) { MX.bAge = []; for (j = 0; j < 4; j++) MX.bAge.push(new Array(16).fill(0)); }
     for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) {
       if (!blocked[j][k]) { MX.bAge[j][k] = 0; continue; }
-      if (MX.fresh) MX.bAge[j][k] = 99; else MX.bAge[j][k]++;
-      if (MX.bAge[j][k] > 22) blocked[j][k] = false;
+      if (MX.fresh || MX.bAge[j][k] >= 99) MX.bAge[j][k] = 99; else MX.bAge[j][k]++;
+      /* già lì all'aggancio = sfondo; arrivata dopo = mano o braccio: tengo i segni di prima (fino a ~15 s ferma) */
+      if (MX.bAge[j][k] >= 99 || MX.bAge[j][k] > 160) blocked[j][k] = false;
     }
   }
   var nBig = 0; for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) if (blocked[j][k]) nBig++;

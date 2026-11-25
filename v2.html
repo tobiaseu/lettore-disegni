@@ -146,7 +146,7 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
 .badge{font:600 10.5px var(--mono);letter-spacing:.05em;text-transform:uppercase;background:#f0ede6;border:1px solid var(--line);color:#6b665b;padding:2px 7px;border-radius:99px}
 .badge.c{background:#f3e3cf;border-color:#e2c7a6;color:#7a5428}
 @media (max-width:560px){.handrow .seg{display:grid;grid-template-columns:1fr 1fr;border-radius:14px;width:100%}.handrow .seg button{white-space:normal;border-radius:10px;font-size:13px}main,header{padding-left:16px;padding-right:16px}}
-#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:90vw}
+#toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60;max-width:90vw}
 #toast.show{opacity:1}
 footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
 
@@ -192,12 +192,15 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
 .notes{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:12px;height:100%}
 #notes{width:100%;min-height:180px;height:100%;resize:none;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:14px/1.55 var(--mono);background:var(--card)}
 .notesside{display:flex;flex-direction:column;gap:8px}
+@media (max-width:700px){.dockbar{overflow-x:auto;scrollbar-width:none}.dockbar>*{flex:none}.dockmini{display:none}}
+.mixbtn{border:0;background:var(--accent);color:#fff;border-radius:99px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-left:8px;white-space:nowrap}
+body{padding-bottom:44px}
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><h1>Lettore di disegni</h1><small>v2 · prototipo per il workshop</small></div>
-  <nav class="seg" aria-label="Versione"><a href="index.html">v1</a><a class="on" href="v2.html" aria-current="page">v2 workshop</a><a href="v3.html">v3</a></nav>
+  <nav class="seg" aria-label="Versione"><a href="index.html">v1</a><a class="on" href="v2.html" aria-current="page">v2 workshop</a><a href="v3.html">v3</a><a href="v4.html">v4</a></nav>
   <span class="chip" id="chipMk"><i></i><span>aggancio —</span></span>
   <span class="chip" id="chipFps"><i></i><span>lettura —</span></span>
   <span class="chip" id="chipAudio"><i></i><span>audio spento</span></span>
@@ -217,6 +220,8 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
         <button class="tbtn" id="bCorners">Angoli a mano</button>
         <button class="tbtn" id="bRot">Ruota 180°</button>
       </span>
+      <span class="lbl">lettura</span>
+      <span class="group" id="readSeg" style="gap:4px"><button class="tbtn" data-read="note" title="Lettura standard a note">Note</button><button class="tbtn" data-read="tratto" title="Il suono segue il segno: curve continue, spessore = volume">Tratto</button><button class="tbtn" data-read="sonograf" title="Come il Sonograf: il nero suona, ogni altezza è un oscillatore">Sonograf</button></span>
       <span class="lbl">livelli</span>
       <button class="tbtn on" id="lyZones" aria-pressed="true">Zone</button>
       <button class="tbtn on" id="lyNotes" aria-pressed="true">Note</button>
@@ -228,7 +233,7 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
       <div id="start">
         <div class="box">
           <h3>Accendi l'occhio</h3>
-          <p>Inquadra dall'alto la base in cartone con i 4 marker agli angoli. Il computer legge, il telefono fa da camera.</p>
+          <p>Inquadra la base in cartone con il foglio A4 e la matrice (anche di sbieco, angoli neri ok). Il computer legge e suona, il telefono fa da camera.</p>
           <button class="go" id="goCam">Accendi la camera</button>
           <div class="alt">
             <button class="tbtn" id="goDemo">Demo senza camera</button>
@@ -257,6 +262,7 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
   <button role="tab" id="tab-dat" aria-controls="pane-dat" aria-selected="false">Dati</button>
   <button role="tab" id="tab-inf" aria-controls="pane-inf" aria-selected="false">Info progetto</button>
   <button role="tab" id="tab-not" aria-controls="pane-not" aria-selected="false">Appunti</button>
+  <button class="mixbtn" id="bMixer" title="Mixer, kit, accordatura e lettura (tasto M)">Mixer ▴</button>
   <span class="dockmini" id="dockMini"></span>
   <button class="dockfold" id="dockFold" aria-expanded="true" title="Riduci o apri il pannello">▾</button>
 </nav>
@@ -291,6 +297,7 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
       <div class="card">
         <h3>Suono</h3>
         <div class="stack">
+          <button class="btn" id="bMixer2" style="justify-content:center;font-weight:700">Apri mixer, kit e accordatura</button>
           <div class="group scales" id="scales"></div>
           <div class="group"><span class="muted">Trasporta</span>
             <button class="btn" id="tDown" aria-label="Più basso">−</button><span class="val" id="vTr">0</span><button class="btn" id="tUp" aria-label="Più alto">+</button><button class="btn" id="tZero">0</button></div>
@@ -394,21 +401,43 @@ footer{padding:4px 22px 26px;color:var(--muted);font-size:12.5px}
 <script src="layout.js"></script>
 <script src="board.js"></script>
 <script src="layout-v2.js"></script>
+<script src="layout-v4.js"></script>
+<script src="sound-v4.js"></script>
 <script>
 (function () {
 'use strict';
-var L = LAYOUT_V2('right'), COLS = 64, ROWS = 120, NI = L.instruments.length, ND = L.drums.length;
+function LV2(h) { var l = LAYOUT_V2(h); l.scales = LAYOUT_V4(h).scales; return l; }
+var L = LV2('right'), COLS = 64, ROWS = 120, NI = L.instruments.length, ND = L.drums.length;
 var $ = function (id) { return document.getElementById(id); };
 
 /* ---------------- stato ---------------- */
 var S = {
   playing: false, loop: true, rec: false, bpm: 90, transpose: 0, scale: 0,
   muteC: new Array(NI).fill(false), muteD: new Array(ND).fill(false),
-  volume: 0.8, sheet: 'inst', camCtl: true, mode: 'board', sens: 0, freeze: false, debug: false, hand: 'right', glide: true, lay: { zones: true, notes: true }
+  volume: 0.8, sheet: 'inst', camCtl: true, mode: 'sheet', sens: 0, freeze: false, debug: false, hand: 'right', glide: true, lay: { zones: true, notes: true },
+  key: 0, map: 'bands', prog: 0, follow: 'off', bassRoot: false, read: 'note', trattoPitch: 'scale', div: 1, swing: 0, patOverride: false
 };
-try { var saved = JSON.parse(localStorage.getItem('lettore-v2-workshop') || '{}'); ['volume', 'sheet', 'camCtl', 'sens', 'mode', 'hand', 'glide'].forEach(function (k) { if (k in saved) S[k] = saved[k]; }); if (!saved.sv) S.sheet = 'inst'; } catch (e) {}
-L = LAYOUT_V2(S.hand);
-function saveTeacher() { try { localStorage.setItem('lettore-v2-workshop', JSON.stringify({ sv: 2, volume: S.volume, sheet: S.sheet, camCtl: S.camCtl, sens: S.sens, mode: S.mode, hand: S.hand, glide: S.glide })); } catch (e) {} }
+var TUNE_KEYS = ['key', 'scale', 'map', 'prog', 'follow', 'bassRoot', 'read', 'trattoPitch', 'div', 'swing', 'bpm', 'transpose'];
+try { var saved = JSON.parse(localStorage.getItem('lettore-v2-workshop') || '{}'); ['volume', 'sheet', 'camCtl', 'sens', 'mode', 'hand', 'glide'].concat(TUNE_KEYS).forEach(function (k) { if (k in saved) S[k] = saved[k]; }); if (!saved.sv) S.sheet = 'inst'; if (!(saved.sv >= 3)) S.mode = 'sheet'; /* 25 Nov: di default fogli su base di cartone con angoli neri, niente marker */ } catch (e) {}
+L = LV2(S.hand);
+/* ---- dalla v4: riconoscimento robusto, letture Tratto e Sonograf, accordatura e mixer ---- */
+var stripExcl = null; /* fuori dalla carta (tappetino che si vede da un angolo strappato), allargato di 4 px */
+var fitDbg = [];
+var tplLab = null, tplEdge = null;
+var cdbg = [];
+var FC = 256, fineCls = new Int8Array(FC * ROWS).fill(-1), fineDark = new Uint8Array(FC * ROWS), finePrev = null, fineVer = 0, fineHash = 0, tracks = [];
+var CHORDS = { M: [0, 4, 7], m: [0, 3, 7], '7': [0, 4, 7, 10], M7: [0, 4, 7, 11], m7: [0, 3, 7, 10] };
+var PROGS = [
+  { name: 'Nessun giro · solo la scala', ch: null },
+  { name: 'Pop · I – V – vi – IV', ch: [[0, 'M'], [7, 'M'], [9, 'm'], [5, 'M']] },
+  { name: 'Close to Me · I – ii – vi – V', ch: [[0, 'M'], [2, 'm'], [9, 'm'], [7, 'M']] },
+  { name: 'Reggaeton · i – VI – III – VII', ch: [[0, 'm'], [8, 'M'], [3, 'M'], [10, 'M']] },
+  { name: 'Rap scuro · i – iv – VI – V', ch: [[0, 'm'], [5, 'm'], [8, 'M'], [7, 'M']] },
+  { name: 'House · ii7 – V7 – Imaj7 – vi7', ch: [[2, 'm7'], [7, '7'], [0, 'M7'], [9, 'm7']] },
+  { name: 'Lo-fi hip hop · IVmaj7 – iii7 – vi7 – Imaj7', ch: [[5, 'M7'], [4, 'm7'], [9, 'm7'], [0, 'M7']] },
+  { name: 'Blues · I7 – IV7 – I7 – V7', ch: [[0, '7'], [5, '7'], [0, '7'], [7, '7']] }
+];
+function saveTeacher() { try { var o = { sv: 3, volume: S.volume, sheet: S.sheet, camCtl: S.camCtl, sens: S.sens, mode: S.mode, hand: S.hand, glide: S.glide }; TUNE_KEYS.forEach(function (k) { o[k] = S[k]; }); localStorage.setItem('lettore-v2-workshop', JSON.stringify(o)); } catch (e) {} }
 
 var committed = [], pending = [];
 for (var c0 = 0; c0 < COLS; c0++) { committed.push([]); pending.push({ sig: '', n: 0, notes: [] }); }
@@ -624,19 +653,7 @@ function hsv(rgb, wb) {
 }
 /* indice strumento: 0 flauto verde, 1 violino giallo, 2 piano blu, 3 chitarra rossa, 4 basso nero, -1 carta */
 var IDX = { flute: 0, violin: 1, piano: 2, guitar: 3, bass: 4 };
-function classify(rgb, wb) {
-  var q = hsv(rgb, wb), h = q[0], s = q[1], v = q[2], sens = S.sens;
-  if (s > 0.24 - sens * 0.08 && v > 0.16) { /* 0,24: i pennarelli chiari (verde acqua, azzurro) sotto luce calda restano poco saturi */
-    if (h < 22 || h >= 300) return IDX.guitar;
-    if (h < 40) return h < 31 ? IDX.guitar : IDX.violin;
-    if (h < 78) return IDX.violin;
-    if (h < 192) return IDX.flute; /* verde e verde acqua */
-    if (h < 270) return IDX.piano;
-    return IDX.piano;
-  }
-  if (v < 0.40 + sens * 0.1) return IDX.bass;
-  return -1;
-}
+function classify(rgb, wb) { return classifyQ(hsv(rgb, wb)); }
 function inkLevel(rgb, wb) { var q = hsv(rgb, wb); return (1 - Math.min(1, q[2])) + q[1]; }
 
 /* ---------------- lettura del foglio ---------------- */
@@ -646,6 +663,7 @@ function readSheet() {
   for (c = 2; c < COLS; c += 4) for (r = 3; r < ROWS; r += 6) { var sm = rgbAt(R.x + (c + .5) * cw, R.y + (r + .5) * rh); if (sm) samples.push(sm); }
   if (samples.length < 50) return;
   wbSheet = whiteOf(samples);
+  if (S.read != 'note') { readFine(wbSheet); return; }
   if (S.debug) debugPts = [];
   for (c = 0; c < COLS; c++) {
     var cls = new Int8Array(ROWS).fill(-1), votes = new Uint8Array(ROWS), inked = 0, ok = true;
@@ -674,8 +692,8 @@ function readSheet() {
       runs.slice(0, 3).forEach(function (ru) {
         var len = (ru[1] - ru[0] + 1) * rh;
         var yTop = 1 - (ru[0] + .5) / ROWS, yBot = 1 - (ru[1] + .5) / ROWS, yMid = (yTop + yBot) / 2;
-        if (len > 26) { notes.push({ i: ins, y: yTop }, { i: ins, y: yMid }, { i: ins, y: yBot }); }
-        else notes.push({ i: ins, y: yMid });
+        if (len > 26) { notes.push({ i: ins, y: yTop, c: c }, { i: ins, y: yMid, c: c }, { i: ins, y: yBot, c: c }); }
+        else notes.push({ i: ins, y: yMid, c: c });
       });
     }
     var sig = notes.map(function (n) { return n.i + ':' + Math.round(n.y * 60); }).sort().join('|');
@@ -740,7 +758,7 @@ function readControls() {
 }
 
 /* ---------------- modalità solo foglio ---------------- */
-var lastShapes = [], sheetLock = false, sheetCand = null, sheetCandN = 0, manualPts = null, rot180 = false, sheetCorners = null, stripFound = null;
+var stripMiss = 0, lastShapes = [], sheetLock = false, sheetCand = null, sheetCandN = 0, manualPts = null, rot180 = false, sheetCorners = null, stripFound = null;
 function otsu(hist, total) {
   var sum = 0, i; for (i = 0; i < 256; i++) sum += i * hist[i];
   var sB = 0, wB = 0, best = 0, th = 128;
@@ -794,6 +812,11 @@ function detectSheet(detW) {
     for (y = 0; y < h; y++) for (x = 0; x < w; x++) { m = 0; for (k = Math.max(0, y - r); k <= Math.min(h - 1, y + r); k++) if (tmp[k * w + x]) { m = 1; break; } bar[y * w + x] = m; }
     label(function (k) { return !bar[k] && lum[k] > t1; }, 'bordi' + T + '/' + r, r + 1);
   });
+  /* terza strada, per il tappetino verde: tutto ciò che non ha colore (carta + inchiostro nero) contro lo sfondo colorato.
+     I simboli neri vicino al bordo non tagliano più la carta */
+  var satA = new Uint8Array(n), nCol = 0;
+  for (i = 0; i < n; i++) { var r0 = d[4 * i], g0 = d[4 * i + 1], b0 = d[4 * i + 2], m0 = Math.max(r0, g0, b0), s0 = m0 ? (m0 - Math.min(r0, g0, b0)) / m0 : 0; satA[i] = s0 * 255; if (s0 > .25) nCol++; }
+  if (nCol > n * .08) label(function (k) { return satA[k] < 46; }, 'senza colore', 0);
   /* per ogni zona bianca: 4 angoli, lato lungo in orizzontale, proporzioni */
   function dist(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
   var shapes = comps.map(function (e) {
@@ -842,10 +865,14 @@ function pickStrip(cands, sheetC) {
     var Hi = toPlane(sheetC), best = null;
     cands.forEach(function (q) {
       var P = planeSize(Hi, q); if (P.cx > 0 && P.cx < 297 && P.cy > 0 && P.cy < 210) return; /* è dentro l'A4 */
-      var sc = Math.abs(P.w - 297) / 297 + Math.abs(P.h - 74.25) / 74.25;
+      /* misure (la striscia fatta a mano può essere un po' più alta), vicinanza al foglio (sopra o sotto, non di lato:
+         le zone bianche lontane sono il tavolo) e consenso tra le soglie (i candidati arrivano già ordinati) */
+      var sc = Math.abs(P.w - 297) / 297 + .6 * Math.abs(P.h - 74.25) / 74.25;
+      var outX = Math.max(0, Math.abs(P.cx - 148.5) - 148.5), outY = Math.max(0, Math.abs(P.cy - 105) - 105 - P.h / 2);
+      sc += (outX * 1.5 + outY) / 297 + .02 * Math.min(10, cands.indexOf(q));
       if (!best || sc < best.sc) best = { sc: sc, q: q, P: P };
     });
-    if (best && best.sc < .45) { stripPlane = best.P; return best.q; }
+    if (best && best.sc < .65) { stripPlane = best.P; return best.q; }
     return null;
   }
   var im = cands.filter(function (q) { var a = quadAspect(q); return a > 3.2 && a < 9; });
@@ -876,7 +903,7 @@ function rgbF(x, y) {
    inchiostro (scuro senza colore: simboli, che uniscono la carta da una parte e dall'altra) o altro
    (cartone, tavolo, sfondo). Il bordo è la fine della carta verso fuori. Così non mi confondo né con
    i simboli vicino al bordo né con il bordo del cartone più in là. */
-var refineDbg = [];
+var refineDbg = [], refineLog = [];
 function refineQuad1(c) {
   if (!c || !img) return c; refineDbg = [];
   var cx = (c[0][0] + c[1][0] + c[2][0] + c[3][0]) / 4, cy = (c[0][1] + c[1][1] + c[2][1] + c[3][1]) / 4, lines = [], ok = 0, longest = 0, e, k;
@@ -888,8 +915,11 @@ function refineQuad1(c) {
     var q = rgbF(px0 + (px1 - px0) * b1, py0 + (py1 - py0) * b1); if (q) lv.push(q[0] * .3 + q[1] * .59 + q[2] * .11);
   }
   lv.sort(function (x, y) { return x - y; }); var PL = lv.length ? lv[Math.floor(lv.length * .8)] : 200;
+  var PH = 0; /* carta più scura dello sfondo (striscia che sporge sul tavolo bianco): la carta sta sotto questa soglia */
+  var PT = 0; /* soglia della carta in questo punto: alzata quando lo sfondo fuori è chiaro anche lui (foglio quadrettato) */
   function cls(q) { if (!q) return 'O'; var mx = Math.max(q[0], q[1], q[2]), mn = Math.min(q[0], q[1], q[2]), sat = mx ? (mx - mn) / mx : 0, l = q[0] * .3 + q[1] * .59 + q[2] * .11;
-    if (l > PL * .8 && sat < .13) return 'P'; if (sat < .16 && l < PL * .62) return 'K'; return 'O'; }
+    if (PH && l > PL * .78 && l < PH && sat < .13) return 'P';
+    if (!PH && l > Math.max(PL * .8, PT) && sat < .13) return 'P'; if (sat < .16 && l < PL * .62) return 'K'; return 'O'; }
   for (e = 0; e < 4; e++) {
     var A = c[e], B = c[(e + 1) % 4], len = Math.hypot(B[0] - A[0], B[1] - A[1]), nx = -(B[1] - A[1]) / len, ny = (B[0] - A[0]) / len;
     if (((A[0] + B[0]) / 2 - cx) * nx + ((A[1] + B[1]) / 2 - cy) * ny < 0) { nx = -nx; ny = -ny; } /* normale verso fuori */
@@ -899,8 +929,19 @@ function refineQuad1(c) {
       var Q = []; for (k = -R; k <= R; k++) Q.push(rgbF(px + nx * k, py + ny * k));
       /* livello della carta qui (la luce cambia lungo il bordo): il più chiaro della metà interna */
       var loc = 0; for (k = 0; k <= R; k++) if (Q[k]) { var lq = Q[k][0] * .3 + Q[k][1] * .59 + Q[k][2] * .11; if (lq > loc) loc = lq; }
-      var PLs = PL; PL = Math.min(PLs, Math.max(loc, PLs * .7)); Q.forEach(function (q) { C.push(cls(q)); }); PL = PLs;
+      /* sfondo chiaro (quaderno a quadretti, tavolo bianco): la carta è solo quello più chiaro della metà tra carta e sfondo */
+      var outs = []; for (k = R + Math.round(R * .45); k < Q.length; k++) if (Q[k]) outs.push(Q[k][0] * .3 + Q[k][1] * .59 + Q[k][2] * .11);
+      outs.sort(function (x, y) { return x - y; }); var outL = outs.length ? outs[outs.length >> 1] : 0;
+      /* sfondo colorato (tappetino verde): carta e inchiostro sono senza colore, lo sfondo sì. Così i simboli neri vicino
+         al bordo e il bordo un po' morbido o strappato non spostano il lato */
+      var oss = []; for (k = R + Math.round(R * .45); k < Q.length; k++) if (Q[k]) { var qq = Q[k], mq = Math.max(qq[0], qq[1], qq[2]); oss.push(mq ? (mq - Math.min(qq[0], qq[1], qq[2])) / mq : 0); }
+      oss.sort(function (x, y) { return x - y; }); var outS = oss.length ? oss[oss.length >> 1] : 0;
+      var PLs = PL; PL = Math.min(PLs, Math.max(loc, PLs * .7)); PT = outL > PL * .7 ? (PL + outL) / 2 : 0; PH = outL > PL * 1.07 ? (PL + outL) / 2 : 0; if (PH) PT = 0;
+      if (outS > .22) Q.forEach(function (q) { if (!q) { C.push('O'); return; } var m1 = Math.max(q[0], q[1], q[2]), sq = m1 ? (m1 - Math.min(q[0], q[1], q[2])) / m1 : 0; C.push(sq < outS * .55 ? 'P' : 'O'); });
+      else Q.forEach(function (q) { C.push(cls(q)); });
+      PL = PLs; PT = 0; PH = 0;
       /* uniscono la carta i tratti d'inchiostro corti (un simbolo vicino al bordo) */
+      if (t == 14) (refineDbg.strs || (refineDbg.strs = [])).push(e + ':' + C.join('') + ' outS' + outS.toFixed(2) + ' outL' + Math.round(outL) + ' PL' + Math.round(PL));
       var str = C.join('').replace(/P(K{1,14})(?=P)/g, function (m, g) { return 'P' + g.replace(/K/g, 'P'); });
       /* la carta "di riferimento" è quella che copre la metà interna; il bordo è dove finisce verso fuori */
       var best = -1, bestCov = 0, i0 = 0;
@@ -923,6 +964,7 @@ function refineQuad1(c) {
     var Lf = fitLine(bestIn);
     lines.push(Lf); ok++;
   }
+  refineLog.push({ c: c.map(function (p) { return p.map(Math.round); }), n: refineDbg.map(function (p) { return p.length; }), ok: lines.map(function (l) { return !!l; }), s: refineDbg.strs }); if (refineLog.length > 6) refineLog.shift();
   if (ok < 2) return c;
   /* un lato che non si riesce a misurare (corto, in ombra) resta quello di partenza */
   for (e = 0; e < 4; e++) if (!lines[e]) { var A2 = c[e], B2 = c[(e + 1) % 4], l2 = Math.hypot(B2[0] - A2[0], B2[1] - A2[1]); lines[e] = { x: A2[0], y: A2[1], dx: (B2[0] - A2[0]) / l2, dy: (B2[1] - A2[1]) / l2 }; }
@@ -955,13 +997,37 @@ var SHAPE_DRUM = { rect: 'snare', diamond: 'hat', tri: 'clap', circle: 'kick' };
 var SHAPE_LETTER = { rect: 'R', diamond: 'H', tri: 'C', circle: 'K' };
 function drumIndex(key) { for (var i = 0; i < ND; i++) if (L.drums[i].key == key) return i; return -1; }
 function sampleStrip(Hs) {
-  var G = new Float32Array(SU * SV), W = img.width, Hh = img.height, d = img.data;
+  var G = new Float32Array(SU * SV), W = img.width, Hh = img.height, d = img.data, ex = new Uint8Array(SU * SV);
   for (var v = 0; v < SV; v++) for (var u = 0; u < SU; u++) {
     var p = proj(Hs, u + .5, v + .5), x = p[0] | 0, y = p[1] | 0;
     if (x < 0 || y < 0 || x >= W - 1 || y >= Hh - 1) { G[v * SU + u] = 255; continue; }
-    var i = (y * W + x) * 4, j = i + W * 4;
-    G[v * SU + u] = ((d[i] + d[i + 4] + d[j] + d[j + 4]) * .3 + (d[i + 1] + d[i + 5] + d[j + 1] + d[j + 5]) * .59 + (d[i + 2] + d[i + 6] + d[j + 2] + d[j + 6]) * .11) / 4;
+    var i = (y * W + x) * 4, j = i + W * 4, R0 = d[i] + d[i + 4] + d[j] + d[j + 4], G0 = d[i + 1] + d[i + 5] + d[j + 1] + d[j + 5], B0 = d[i + 2] + d[i + 6] + d[j + 2] + d[j + 6];
+    var mx = Math.max(R0, G0, B0), mn = Math.min(R0, G0, B0);
+    /* il tappetino verde (o un colore forte) dove l'angolo è strappato non è inchiostro: lo tratto come carta */
+    var lum = (R0 * .3 + G0 * .59 + B0 * .11) / 4;
+    if (mx > 0 && (mx - mn) / mx > .28 && mx > 120) { ex[v * SU + u] = 1; G[v * SU + u] = Math.min(lum, 255 * (1.15 - (mx - mn) / mx * 1.3)); }
+    else G[v * SU + u] = lum;
   }
+  /* il colore che tocca il bordo della striscia è il tappetino (angolo strappato): lo tratto come carta.
+     Il colore chiuso dentro la carta è una forma colorata dai bambini: resta inchiostro (più è saturo, più è scuro) */
+  /* ...ma una mano (pelle, manica colorata) entra anche lei dal bordo: se la zona colorata arriva in profondità dentro la
+     striscia (più di 40 px in tutte e due le direzioni) non è un angolo strappato ma una mano, e resta scura (= mano ferma) */
+  var st = [], sp = 0, k0, seeds = [], comp = [];
+  for (u = 0; u < SU; u++) { seeds.push(u, (SV - 1) * SU + u); } for (v = 0; v < SV; v++) { seeds.push(v * SU, v * SU + SU - 1); }
+  seeds.forEach(function (s0) {
+    if (ex[s0] != 1) return; ex[s0] = 2; st[0] = s0; sp = 1; comp.length = 0; var a0 = SU, a1 = 0, b0 = SV, b1 = 0;
+    while (sp) { var kk = st[--sp], xx = kk % SU, yy = (kk / SU) | 0; comp.push(kk);
+      if (xx < a0) a0 = xx; if (xx > a1) a1 = xx; if (yy < b0) b0 = yy; if (yy > b1) b1 = yy;
+      if (xx > 0 && ex[kk - 1] == 1) { ex[kk - 1] = 2; st[sp++] = kk - 1; } if (xx < SU - 1 && ex[kk + 1] == 1) { ex[kk + 1] = 2; st[sp++] = kk + 1; }
+      if (yy > 0 && ex[kk - SU] == 1) { ex[kk - SU] = 2; st[sp++] = kk - SU; } if (yy < SV - 1 && ex[kk + SU] == 1) { ex[kk + SU] = 2; st[sp++] = kk + SU; } }
+    if (Math.min(a1 - a0, b1 - b0) > 40 && comp.length > 3000) comp.forEach(function (q) { ex[q] = 3; });
+  });
+  for (v = 0; v < SV * SU; v++) { if (ex[v] == 2) { G[v] = 255; ex[v] = 1; } else ex[v] = 0; }
+  /* allargo la zona esclusa: il bordo misto carta/tappetino è grigio scuro e sembrerebbe inchiostro */
+  var e2 = new Uint8Array(SU * SV), RR = 5, u2, v2;
+  for (v = 0; v < SV; v++) for (u = 0; u < SU; u++) { if (!ex[v * SU + u]) continue;
+    for (v2 = Math.max(0, v - RR); v2 <= Math.min(SV - 1, v + RR); v2++) for (u2 = Math.max(0, u - RR); u2 <= Math.min(SU - 1, u + RR); u2++) e2[v2 * SU + u2] = 1; }
+  stripExcl = e2;
   return G;
 }
 function pct(G, q) { var a = Array.prototype.slice.call(G, 0).filter(function (_, i) { return i % 7 == 0; }).sort(function (x, y) { return x - y; }); return a[Math.floor(a.length * q)]; }
@@ -1059,17 +1125,31 @@ function setupStrip(c) {
   if (H && sheetCorners) { var Pm = planeSize(toPlane(sheetCorners), c); asp = Pm.w / Math.max(1, Pm.h); r.plane = Pm; }
   r.aspect = asp;
   /* proporzioni 4:1 = matrice stampata (le strisce a mano con la legenda stanno sotto 3,5:1) */
-  if (!(asp < 3.6 && r.ratio < 1.5) && asp < 9) { /* la matrice stampata è 4:1; solo una striscia più corta e senza modello è quella disegnata a mano */
+  /* v4: la matrice è quella stampata (anche tagliata male, con gli angoli strappati); le proporzioni misurate in prospettiva
+     non sono affidabili, quindi decide l'impostazione (Impostazioni > Matrice), non la forma */
+  if (S.mxKind != 'hand') { /* la matrice stampata è 4:1; solo una striscia più corta e senza modello è quella disegnata a mano */
     /* la griglia è legata ai bordi della carta: 297 x 74,25 diviso esattamente in 16 x 4.
        Dal modello prendo solo il verso (striscia capovolta o no) */
     var ink0 = mxInk, full0 = tplFilled(ink0, 0, 0, 1, false), full1 = tplFilled(ink0, 0, 0, 1, true), regI = tplRegInk(ink0);
     var sN = tplScore(regI, 0, 0, 1, false, false, full0), sF = tplScore(regI, 0, 0, 1, true, false, full1);
-    var oN = tplOrientScore(ink0, false), oF = tplOrientScore(ink0, true);
-    /* le forme piene decidono il verso; se la striscia è vuota uso il tratteggio */
-    var flip = oN.n + oF.n >= 2 ? oF.s > oN.s : sF > sN;
+    var oN = tplOrientScore(ink0, false), oF = tplOrientScore(ink0, true), bo = tplBlobOrient(ink0);
+    /* il verso: prima le macchie piene contate per riga (robusto anche se i bordi sono spostati di qualche mm),
+       poi le forme piene nella griglia esatta, infine il tratteggio se la striscia è vuota */
+    var flip = bo.n >= 2 && bo.N != bo.F ? bo.F > bo.N : oN.n + oF.n >= 2 ? oF.s > oN.s : sF > sN, flip0 = flip;
     if (flip) { c = [c[2], c[3], c[0], c[1]]; Hs = homography(src, c); }
-    var rr = { dx: 0, dy: 0, sy: 1, s: Math.max(sN, sF), ratio: r.ratio, strict: true };
-    MX = null; strip = { c: c, H: Hs, g: tplGrid(rr), header: [], tpl: true, aspect: asp, flipped: flip, conf: Math.max(sN, sF) / Math.max(.004, Math.min(sN, sF)) };
+    /* bordi letti male (angolo strappato, bordo sfocato, carta tagliata storta): le forme piene stampate sono
+       al centro esatto della loro casella, quindi correggo la griglia con le forme stesse (rotazione, inclinazione, scala) */
+    var fit = tplBlobFit(Hs);
+    if (fit) { fit.flip = flip0; Hs = fit.H; G2 = sampleStrip(Hs); mxNormalize(G2); bo = tplBlobOrient(mxInk); flip = false;
+      /* con la griglia giusta le forme dicono il verso con più sicurezza: se dicono "capovolta", giro e ricorreggo */
+      if (bo.n >= 3 && bo.F > bo.N * 2 + 1) { var Hr = matMul3(Hs, [-1, 0, SU, 0, -1, SV, 0, 0, 1]), fit2 = tplBlobFit(Hr);
+        Hs = fit2 ? fit2.H : Hr; fit.flip = !flip0; fit.info = fit2 ? fit2.info : fit.info; G2 = sampleStrip(Hs); mxNormalize(G2); bo = tplBlobOrient(mxInk); }
+      c = [[0, 0], [SU, 0], [SU, SV], [0, SV]].map(function (k) { return proj(Hs, k[0], k[1]); }); }
+    /* rifinitura: fogli tagliati storti o bordi letti con 1-2 mm di errore. Sposto la griglia della mediana
+       dello scarto tra le macchie piene e il centro della loro casella (al massimo un terzo di casella) */
+    var off = tplBlobOffset(bo.blobs, fit ? false : flip);
+    var rr = { dx: off.du, dy: off.dv, sy: 1, s: Math.max(sN, sF), ratio: r.ratio, strict: true };
+    MX = null; strip = { c: c, H: Hs, g: tplGrid(rr), header: [], tpl: true, aspect: asp, flipped: !!(flip || (fit && fit.flip)), fit: fit && fit.info, oN: oN, oF: oF, sN: sN, sF: sF, bo: { n: bo.n, N: bo.N, F: bo.F }, off: off, conf: Math.max(sN, sF) / Math.max(.004, Math.min(sN, sF)) };
     tplInit(rr); readStrip();
     toast('Matrice trovata dai bordi · ' + (flip ? 'era capovolta, la giro io' : 'dritta'));
     logEvent('matrice agganciata ai bordi · proporzioni ' + asp.toFixed(2) + ' (modello 4,00) · ' + (flip ? 'capovolta' : 'dritta') + ' · sicurezza del verso ' + strip.conf.toFixed(2));
@@ -1144,6 +1224,7 @@ function mxNormalize(G) {
   for (v = 0; v < hh; v++) for (u = 0; u < hw; u++) { m = 0; for (k = Math.max(0, u - B); k <= Math.min(hw - 1, u + B); k++) m += mxBg[v * hw + k]; mxTmp[v * hw + u] = m / (Math.min(hw - 1, u + B) - Math.max(0, u - B) + 1); }
   for (u = 0; u < hw; u++) for (v = 0; v < hh; v++) { m = 0; for (k = Math.max(0, v - B); k <= Math.min(hh - 1, v + B); k++) m += mxTmp[k * hw + u]; mxBg[v * hw + u] = m / (Math.min(hh - 1, v + B) - Math.max(0, v - B) + 1); }
   for (v = 0; v < SV; v++) for (u = 0; u < SU; u++) { var b = Math.max(30, mxBg[Math.min(hh - 1, v >> 1) * hw + Math.min(hw - 1, u >> 1)]), x = 1 - G[v * SU + u] / b; mxInk[v * SU + u] = x < 0 ? 0 : x; }
+  mxCleanBorder();
 }
 function mxCol(u) { var us = MX.g.us; if (u < us[0]) return MX.legend ? -1 : null; for (var k = 0; k < 16; k++) if (u < us[k + 1]) return k; return null; }
 function mxRow(v) { var vs = MX.g.vs; for (var j = 0; j < 4; j++) if (v < vs[j + 1]) return v >= vs[0] ? j : null; return null; }
@@ -1194,7 +1275,11 @@ function mxRead(G) {
   for (j = 0; j < 4; j++) blocked.push(new Array(16).fill(false));
   comps.forEach(function (c) {
     var w = c.a1 - c.a0 + 1, h = c.b1 - c.b0 + 1;
-    if (w > p * 1.6 || h > q * 1.6 || c.n > cellA * 1.3) { c.big = true; nBigC++; return; } /* mano o ombra netta */
+    /* mano o ombra netta. Sulla matrice stampata due forme piene vicine (rombo + rettangolo nella stessa colonna) possono
+       toccarsi: non è una mano finché l'area resta piccola */
+    /* fascia scura lungo il bordo della carta (ombra, bordo sfocato o strappato): sottile e attaccata al bordo, non è una mano */
+    if (MX.tpl && (c.a0 <= MX.u0 + 3 || c.a1 >= MX.u1 - 4 || c.b0 <= MX.v0 + 3 || c.b1 >= MX.v1 - 4) && c.n / Math.max(w, h) < Math.min(p, q) * .3) return;
+    if (MX.tpl ? (c.n > cellA * 1.1 || w > p * 2.6 || h > q * 2.6) : (w > p * 1.6 || h > q * 1.6 || c.n > cellA * 1.3)) { c.big = true; nBigC++; return; }
     if (c.n < cellA * .03) return;
     var kc = mxCol(c.su / c.n), jc = mxRow(c.sv / c.n); if (kc == null || jc == null) return;
     var key = kc + ',' + jc, cl = cells[key] || (cells[key] = { k: kc, j: jc, ids: [], n: 0, s: 0, a0: 1e9, a1: -1, b0: 1e9, b1: -1 });
@@ -1223,6 +1308,17 @@ function mxRead(G) {
     for (v = MX.v0; v < MX.v1; v += 2) { var jj = mxRow(v); if (jj == null) continue;
       for (u = MX.u0; u < MX.u1; u += 2) { var lb = lab[v * SU + u]; if (lb && comps[lb - 1].big) { var kk = mxCol(u); if (kk != null && kk >= 0) cnt[jj][kk] += 4; } } }
     for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) if (cnt[j][k] > minPx) blocked[j][k] = true;
+  }
+  /* sulla matrice stampata una macchia grande che resta ferma (angolo strappato, ombra del bordo, già lì all'aggancio
+     o per più di 2 s) non è una mano: quelle caselle si leggono normalmente, decide il contrasto forma/contorno */
+  if (MX.tpl) {
+    if (!MX.bAge) { MX.bAge = []; for (j = 0; j < 4; j++) MX.bAge.push(new Array(16).fill(0)); }
+    for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) {
+      if (!blocked[j][k]) { MX.bAge[j][k] = 0; continue; }
+      if (MX.fresh || MX.bAge[j][k] >= 99) MX.bAge[j][k] = 99; else MX.bAge[j][k]++;
+      /* già lì all'aggancio = sfondo; arrivata dopo = mano o braccio: tengo i segni di prima (fino a ~15 s ferma) */
+      if (MX.bAge[j][k] >= 99 || MX.bAge[j][k] > 160) blocked[j][k] = false;
+    }
   }
   var nBig = 0; for (j = 0; j < 4; j++) for (k = 0; k < 16; k++) if (blocked[j][k]) nBig++;
   MX.raw = raw; MX.rawShape = rawShape; MX.blocked = blocked; MX.blobs = comps.length; MX.hand = nBig > 0;
@@ -1383,15 +1479,23 @@ function tplInit(r) {
    il tratteggio, un trattino o uno scarabocchio sottile no. */
 var TPL_AREA = { circle: Math.PI * 6.75 * 6.75, tri: 13.5 * 11.8 / 2, diamond: 7.9 * 13.7 / 2, rect: 8.5 * 13.4 };
 function tplCells(ink, blocked) {
-  var g = MX.g, th = .25 - S.sens * .07, raw = [], fills = [], half = .39;
+  cdbg = [];
+  var g = MX.g, th = .25 - S.sens * .07, raw = [], fills = [], half = .39, edge = tplEdgeMask(ink, th);
   for (var j = 0; j < 4; j++) {
     raw.push(new Array(16).fill(false)); fills.push(new Float32Array(16));
     var v0 = g.vs[j] + (g.vs[j + 1] - g.vs[j]) * (.5 - half), v1 = g.vs[j] + (g.vs[j + 1] - g.vs[j]) * (.5 + half), need = TPL_AREA[L.drums[j].shape] * (.45 + S.sens * -.1);
     for (var k = 0; k < 16; k++) {
-      var u0 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 - half), u1 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 + half), dark = 0, n = 0;
-      for (var v = Math.max(0, Math.round(v0)); v < Math.min(SV, Math.round(v1)); v++) for (var u = Math.max(0, Math.round(u0)); u < Math.min(SU, Math.round(u1)); u++) { n++; if (ink[v * SU + u] > th) dark++; }
+      var u0 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 - half), u1 = g.us[k] + (g.us[k + 1] - g.us[k]) * (.5 + half), dark = 0, n = 0, nx = 0;
+      for (var v = Math.max(0, Math.round(v0)); v < Math.min(SV, Math.round(v1)); v++) for (var u = Math.max(0, Math.round(u0)); u < Math.min(SU, Math.round(u1)); u++) { n++; var ii = v * SU + u; if (stripExcl && stripExcl[ii]) { nx++; continue; } if (ink[ii] > th && !edge[ii]) dark++; }
       var mm2 = n ? dark / n * Math.pow(TPL.cell * half * 2, 2) : 0;
-      fills[j][k] = Math.min(1, mm2 / (need / .45)); raw[j][k] = mm2 >= need;
+      /* angolo strappato: la parte di casella che manca non conta, la soglia scende in proporzione (fino a metà) */
+      var needK = need * Math.max(.5, 1 - nx / Math.max(1, n));
+      /* contrasto forma/contorno: un simbolo pieno è scuro dentro la sua forma e chiaro intorno;
+         l'ombra o il bordo morbido di un angolo strappato copre dentro e fuori allo stesso modo */
+      var ct = tplContrast(ink, (g.us[k] + g.us[k + 1]) / 2, (g.vs[j] + g.vs[j + 1]) / 2, j, edge);
+      cdbg.push(ct);
+      var okC = ct.inn >= .6 && ct.inn - ct.out > .22;
+      fills[j][k] = Math.min(1, mm2 / (needK / .45)) * (okC ? 1 : .5); raw[j][k] = mm2 >= needK && okC;
     }
   }
   MX.fill = fills;
@@ -1399,6 +1503,7 @@ function tplCells(ink, blocked) {
 }
 /* la griglia che suona (e che compare sul cartone) viene SOLO dallo stato confermato */
 function mxToGrid() {
+  if (S.patOverride) return; /* ritmo d'esempio del kit caricato dal mixer */
   for (var d = 0; d < ND; d++) grid[d].fill(false);
   for (var j = 0; j < 4; j++) { var d2 = MX.rowDrum[j]; if (d2 == null || d2 < 0) continue; for (var k = 0; k < 16; k++) if (MX.on[j][k]) grid[d2][k] = true; }
 }
@@ -1443,6 +1548,8 @@ function readLoop() {
       if (!strip && manualPts == null && t0 - lastStripTry > (sheetLock ? 600 : 250)) {
         lastStripTry = t0;
         if (sheetLock) detectSheet(); else stripFound = pickStrip(stripCands, sheetCorners);
+        if (!stripFound && sheetLock && H) { stripMiss++; if (stripMiss >= (source == 'image' ? 1 : 4)) { stripFound = expectedStrip(); if (stripFound) logEvent('matrice cercata sopra/sotto il foglio (non si staccava dallo sfondo)'); } }
+        else stripMiss = 0;
         if (stripFound) {
           var nearS = stripCand && stripFound.every(function (p, k) { return Math.hypot(p[0] - stripCand[k][0], p[1] - stripCand[k][1]) < frame.width / 80; });
           if (nearS) stripCandN++; else { stripCand = stripFound; stripCandN = 1; }
@@ -1501,9 +1608,12 @@ var INST_BASE = { flute: 60, violin: 60, piano: 48, guitar: 48, bass: 24 };
 function rangeOf(n) { return S.sheet == 'inst' ? [INST_BASE[L.instruments[n.i].key], 36] : RANGES[S.sheet]; }
 function rawMidi(n) {
   var r = rangeOf(n);
-  if (r && L.scales[S.scale].name == 'Sole') { /* Sole = pentatonica di Do (Do Re Mi Sol La): il foglio è diviso in fasce uguali, una per nota della scala */
-    var pn = scaleNotes(r[0], r[0] + r[1], L.scales[S.scale].steps); return pn[Math.max(0, Math.min(pn.length - 1, Math.floor(n.y * pn.length)))]; }
-  if (r) return r[0] + Math.max(0, Math.min(r[1], Math.floor(n.y * (r[1] + 1))));
+  if (r) {
+    /* fasce uguali: il foglio è diviso in tante fasce quante sono le note della scala (o dell'accordo) nell'estensione */
+    var ch = S.follow == 'strict' ? chordAt(n.c) : null, st = ch ? ch.tones : keySteps();
+    if (ch || S.map != 'keys') { var pn = scaleNotes(r[0], r[0] + r[1], st); return pn[Math.max(0, Math.min(pn.length - 1, Math.floor(n.y * pn.length)))]; }
+    return r[0] + Math.max(0, Math.min(r[1], Math.floor(n.y * (r[1] + 1))));
+  }
   if (S.sheet == '8') {
     var idx = Math.max(0, Math.min(7, Math.floor(n.y * 8)));
     return [60, 62, 64, 65, 67, 69, 71, 72][idx] + 12 * OCT8[n.i];
@@ -1517,14 +1627,20 @@ function rawMidi(n) {
 var SCN = {};
 function scaleNotes(lo, hi, st) { var k = lo + ':' + hi + ':' + st, out = SCN[k]; if (out) return out; out = []; for (var m = lo; m <= hi; m++) if (st.indexOf(m % 12) >= 0) out.push(m); return SCN[k] = out; }
 function snap(m) {
-  var st = L.scales[S.scale].steps;
+  var st = keySteps();
   for (var d = 0; d < 7; d++) {
     if (st.indexOf(((m - d) % 12 + 12) % 12) >= 0) return m - d;
     if (st.indexOf(((m + d) % 12 + 12) % 12) >= 0) return m + d;
   }
   return m;
 }
-function midiOf(n) { return snap(rawMidi(n)) + S.transpose; }
+function midiOf(n) {
+  var m = rawMidi(n), ch = chordAt(n.c);
+  if (!(ch && S.follow == 'strict')) m = snap(m);
+  if (ch && S.follow == 'melody') m = nearestPc(m, ch.tones, 2);
+  if (ch && S.bassRoot && L.instruments[n.i].key == 'bass') m = nearestPc(m, [ch.root], 6);
+  return m + S.transpose;
+}
 /* altezza continua (senza tasti), per le linee storte che suonano come un glissando */
 function contMidi(n) {
   var r = rangeOf(n); if (r) return r[0] + Math.max(0, Math.min(r[1], n.y * (r[1] + 1) - .5));
@@ -1556,22 +1672,19 @@ function allGlides() {
 }
 
 /* ---------------- audio ---------------- */
-var AC = null, master, comp, recDest = null, instGain = [], drumGain = [], noiseBuf, ksCache = {};
+/* il suono vero sta in sound-v4.js (canali, kit, mixer): qui solo il collegamento */
+var AC = null, recDest = null, master = null, ksCache = {};
+var sonoB = null;
 function initAudio() {
   if (AC) { if (AC.state != 'running') AC.resume(); return; }
   AC = new (window.AudioContext || window.webkitAudioContext)();
-  comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
-  master = AC.createGain(); master.gain.value = S.volume;
-  master.connect(comp); comp.connect(AC.destination);
-  if (AC.createMediaStreamDestination) { recDest = AC.createMediaStreamDestination(); comp.connect(recDest); }
-  for (var i = 0; i < NI; i++) { var g = AC.createGain(); g.connect(master); instGain.push(g); }
-  for (var j = 0; j < ND; j++) { var g2 = AC.createGain(); g2.connect(master); drumGain.push(g2); }
-  noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
-  var d = noiseBuf.getChannelData(0); for (var k = 0; k < d.length; k++) d[k] = Math.random() * 2 - 1;
+  if (AC.createMediaStreamDestination) recDest = AC.createMediaStreamDestination();
+  SOUND4.init(AC, [AC.destination, recDest]);
+  SOUND4.setVolume(S.volume);
   applyMutes();
 }
 function applyMutes() {
-  if (AC) { instGain.forEach(function (g, i) { g.gain.setTargetAtTime(S.muteC[i] ? 0 : 1, AC.currentTime, .02); }); drumGain.forEach(function (g, i) { g.gain.setTargetAtTime(S.muteD[i] ? 0 : 1, AC.currentTime, .02); }); }
+  S.muteC.forEach(function (m, i) { SOUND4.setExtMute('c', i, m); }); S.muteD.forEach(function (m, i) { SOUND4.setExtMute('d', i, m); });
   renderUI();
 }
 function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
@@ -1590,64 +1703,23 @@ function ks(m) {
   for (i = N; i < len; i++) d[i] = decay * .5 * (d[i - N] + d[i - N + 1 < i ? i - N + 1 : i - N]);
   return (ksCache[m] = buf);
 }
-function playNote(inst, m, t, dur, path) {
-  var out = instGain[inst], f = mtof(m), key = L.instruments[inst].key, end, g, o, o2, lp, s = null;
-  if (key == 'bass') {
-    end = t + dur + .4; g = envGain(t, .01, .32, dur, .1, out);
-    lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t); lp.Q.value = 3; lp.connect(g);
-    o = osc('sawtooth', f, t, end); o2 = osc('sine', f, t, end); o.connect(lp); o2.connect(lp);
-  } else if (key == 'piano') {
-    end = t + Math.max(dur, .2) + 1.6; g = AC.createGain(); g.connect(out);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.32, t + .006); g.gain.setTargetAtTime(.0, t + .01, .5);
-    g.gain.setTargetAtTime(0, t + Math.max(dur, .15), .12);
-    o = osc('triangle', f, t, end); o2 = osc('sine', f * 2, t, end); var g2 = AC.createGain(); g2.gain.value = .25; o.connect(g); o2.connect(g2); g2.connect(g);
-  } else if (key == 'guitar') {
-    s = AC.createBufferSource(); s.buffer = ks(Math.round(m)); g = AC.createGain(); g.gain.setValueAtTime(.55, t); g.gain.setTargetAtTime(0, t + Math.max(dur, .25), .15); g.connect(out);
-    s.connect(g); s.start(t); s.stop(t + Math.max(dur, .25) + .8);
-  } else if (key == 'violin') {
-    end = t + dur + .5; g = envGain(t, .09, .16, dur, .18, out);
-    lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2800; lp.connect(g);
-    o = osc('sawtooth', f, t, end); o2 = osc('sawtooth', f * 1.003, t, end); o.connect(lp); o2.connect(lp);
-    vibrato(o, t, end, 5.6, f * .007); vibrato(o2, t, end, 5.6, f * .007);
-  } else if (key == 'flute') {
-    end = t + dur + .4; g = envGain(t, .06, .22, dur, .12, out);
-    o = osc('sine', f, t, end); o2 = osc('triangle', f, t, end); var g3 = AC.createGain(); g3.gain.value = .12; o.connect(g); o2.connect(g3); g3.connect(g);
-    vibrato(o, t, end, 5, f * .005);
-    var n = AC.createBufferSource(); n.buffer = noiseBuf; var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * 2; bp.Q.value = 2;
-    var gn = AC.createGain(); gn.gain.value = .05; n.connect(bp); bp.connect(gn); gn.connect(g); n.start(t); n.stop(end);
-  }
-  if (path) {
-    [[o, 1], [o2, key == 'piano' ? 2 : key == 'violin' ? 1.003 : 1]].forEach(function (oo) { var os = oo[0], ratio = oo[1]; if (!os) return; path.forEach(function (pt) { os.frequency.linearRampToValueAtTime(mtof(pt[1]) * ratio, pt[0]); }); });
-    if (s) { s.playbackRate.setValueAtTime(mtof(m) / mtof(Math.round(m)), t); } if (s) path.forEach(function (pt) { s.playbackRate.linearRampToValueAtTime(mtof(pt[1]) / mtof(Math.round(m)), pt[0]); });
-  }
-}
+function playNote(inst, m, t, dur, path) { SOUND4.playNote(inst, m, t, dur, path ? { path: path } : null); }
 function noise(t, dur, type, freq, q, peak, decay, out) {
   var n = AC.createBufferSource(); n.buffer = noiseBuf; var fl = AC.createBiquadFilter(); fl.type = type; fl.frequency.value = freq; if (q) fl.Q.value = q;
   var g = AC.createGain(); g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(.001, t + decay);
   n.connect(fl); fl.connect(g); g.connect(out); n.start(t); n.stop(t + dur);
 }
-function playDrum(i, t) {
-  var key = L.drums[i].key, out = drumGain[i], o, g;
-  if (key == 'kick') {
-    o = osc('sine', 150, t, t + .5); o.frequency.exponentialRampToValueAtTime(45, t + .13);
-    g = AC.createGain(); g.gain.setValueAtTime(.95, t); g.gain.exponentialRampToValueAtTime(.001, t + .4); o.connect(g); g.connect(out);
-  } else if (key == 'snare') {
-    noise(t, .25, 'highpass', 1200, 0, .45, .18, out);
-    o = osc('triangle', 190, t, t + .15); g = AC.createGain(); g.gain.setValueAtTime(.35, t); g.gain.exponentialRampToValueAtTime(.001, t + .09); o.connect(g); g.connect(out);
-  } else if (key == 'hat') {
-    noise(t, .08, 'highpass', 7000, 0, .22, .05, out);
-  } else if (key == 'clap') {
-    [0, .012, .024].forEach(function (d) { noise(t + d, .04, 'bandpass', 1400, .8, .35, .03, out); });
-    noise(t + .03, .2, 'bandpass', 1400, .8, .3, .16, out);
-  }
-}
+function playDrum(i, t) { SOUND4.playDrum(i, t); }
 
 /* ---------------- sequencer ---------------- */
 var nextCol = 0, nextTime = 0, timer = null, queue = [], stopAt = null;
-function colDur() { return 60 / S.bpm / 4; }
+function colDur() { return 60 / S.bpm / 4 / (S.div || 1); }
 function sameNote(list, n, m) { for (var k = 0; k < list.length; k++) if (list[k].i == n.i && midiOf(list[k]) == m) return true; return false; }
 var glideClaim = {};
 function scheduleCol(c, t) {
+  if (c % 4 == 0) for (var di = 0; di < ND; di++) if (grid[di][c / 4]) playDrum(di, t);
+  if (S.read == 'tratto') { scheduleTracks(c, t); return; }
+  if (S.read == 'sonograf') { scheduleSono(c, t); return; }
   var notes = committed[c], prev = c > 0 ? committed[c - 1] : [], started = 0, claim = glideClaim[c] || {}, cd = colDur();
   delete glideClaim[c]; if (c == 0) glideClaim = {};
   for (var k = 0; k < notes.length && started < 14; k++) {
@@ -1665,11 +1737,10 @@ function scheduleCol(c, t) {
     var len = 1; while (c + len < COLS && sameNote(committed[c + len], n, m)) len++;
     playNote(n.i, m, t, len * cd * .96); started++;
   }
-  if (c % 4 == 0) for (var i = 0; i < ND; i++) if (grid[i][c / 4]) playDrum(i, t);
 }
 function tick() {
   while (S.playing && stopAt == null && nextTime < AC.currentTime + .22) { /* 220 ms di anticipo: una lettura lenta non fa saltare note */
-    scheduleCol(nextCol, nextTime); queue.push({ c: nextCol, t: nextTime, d: colDur() }); if (queue.length > 80) queue.shift();
+    scheduleCol(nextCol, nextTime + swingOff(nextCol)); queue.push({ c: nextCol, t: nextTime, d: colDur() }); if (queue.length > 80) queue.shift();
     nextTime += colDur(); nextCol++;
     if (nextCol >= COLS) { if (S.loop) nextCol = 0; else { stopAt = nextTime; } }
   }
@@ -1680,7 +1751,7 @@ function startPlay() { logEvent('▶ START');
   clearInterval(timer); timer = setInterval(tick, 25); tick(); renderUI();
 }
 function stopPlay() { if (S.playing) logEvent('■ STOP');
-  S.playing = false; stopAt = null; clearInterval(timer); timer = null;
+  stopSono(); S.playing = false; stopAt = null; clearInterval(timer); timer = null;
   if (S.rec) toggleRec(); renderUI();
 }
 function restart() { if (!S.playing) { startPlay(); return; } logEvent('⟲ RESTART'); nextCol = 0; nextTime = AC.currentTime + .05; queue = []; stopAt = null; }
@@ -1860,7 +1931,10 @@ function drawView() {
     }
   }
   if (S.debug) debugPts.forEach(function (p) { var q = proj(H, p[0], p[1]); vctx.fillStyle = L.instruments[p[2]].color; vctx.fillRect(q[0] - 2, q[1] - 2, 4, 4); });
-  if (S.lay.notes) committed.forEach(function (notes, c) { notes.forEach(function (n) { var q = proj(H, R.x + (c + .5) * cw, R.y + (1 - n.y) * R.h); vctx.beginPath(); vctx.arc(q[0], q[1], lw * 2.1, 0, 7); vctx.fillStyle = L.instruments[n.i].color; vctx.fill(); vctx.strokeStyle = '#fff'; vctx.lineWidth = lw * .6; vctx.stroke(); }); });
+  if (S.lay.notes && S.read == 'tratto') { var fwc = R.w / FC; tracks.forEach(function (tr) { var P = tr.pts; vctx.strokeStyle = vctx.fillStyle = L.instruments[tr.i].color; vctx.lineCap = 'round';
+    for (var k = 0; k < P.length; k++) { var q = proj(H, R.x + (P[k][0] + .5) * fwc, R.y + (1 - P[k][1]) * R.h); if (!k) { vctx.beginPath(); vctx.arc(q[0], q[1], lw * (.6 + P[k][2] * 1.8), 0, 7); vctx.fill(); continue; }
+      var q0 = proj(H, R.x + (P[k - 1][0] + .5) * fwc, R.y + (1 - P[k - 1][1]) * R.h); vctx.beginPath(); vctx.moveTo(q0[0], q0[1]); vctx.lineTo(q[0], q[1]); vctx.lineWidth = lw * (1 + P[k][2] * 3.2); vctx.stroke(); } }); }
+  if (S.lay.notes && S.read == 'note') committed.forEach(function (notes, c) { notes.forEach(function (n) { var q = proj(H, R.x + (c + .5) * cw, R.y + (1 - n.y) * R.h); vctx.beginPath(); vctx.arc(q[0], q[1], lw * 2.1, 0, 7); vctx.fillStyle = L.instruments[n.i].color; vctx.fill(); vctx.strokeStyle = '#fff'; vctx.lineWidth = lw * .6; vctx.stroke(); }); });
   if (S.mode == 'board') {
     var M = L.matrix, mw = M.w / 16, mh = M.h / 4;
     drawMatrixOverlay(mxH);
@@ -1965,6 +2039,8 @@ function twStatic() {
 function twInk() {
   var R = L.read, cw = R.w / COLS, s = '', G = allGlides();
   function yOf(n) { return R.y + (1 - n.y) * R.h; }
+  if (S.read == 'tratto') return twTracks() || txt(R.x + R.w / 2, R.y + R.h / 2, 'qui appaiono i tratti letti dalla camera', 6, { c: '#c9c3b6', w: 500 });
+  if (S.read == 'sonograf') return twSono() || txt(R.x + R.w / 2, R.y + R.h / 2, 'disegna in nero: ogni altezza è un oscillatore', 6, { c: '#c9c3b6', w: 500 });
   for (var c = 0; c < COLS; c++) committed[c].forEach(function (n, k) {
     if (G.used[c + ':' + k]) return;
     var m = midiOf(n), prev = c > 0 ? committed[c - 1] : [];
@@ -2026,7 +2102,7 @@ function buildTwin() {
 }
 function updateTwin() {
   if (!twDyn) return;
-  var sig = JSON.stringify([committed.map(function (c) { return c.map(function (n) { return n.i + ':' + Math.round(n.y * 200); }).join(','); }).join('|'), grid, S.muteC, S.muteD, S.bpm, S.glide]);
+  var sig = JSON.stringify([S.read == 'note' ? committed.map(function (c) { return c.map(function (n) { return n.i + ':' + Math.round(n.y * 200); }).join(','); }).join('|') : S.read + fineVer + ':' + S.key + S.scale, grid, S.muteC, S.muteD, S.bpm, S.glide]);
   if (sig != twSig) { twSig = sig; twDyn.innerHTML = twDynamic({ ink: twInk(), tokens: twTokens(), muteC: S.muteC, muteD: S.muteD, knob: bpmToAngle(S.bpm) }); }
   var ph = playheadPos();
   if (ph == null) twHead.style.display = 'none';
@@ -2181,6 +2257,8 @@ function renderUI() {
   $('bMode').textContent = S.loop ? 'Giro (ripete)' : 'Una volta';
   $('bRec').classList.toggle('on', S.rec);
   $('rSpeed').value = S.bpm; $('vSpeed').textContent = S.bpm;
+  if (window.SOUND4) { SOUND4.syncTune(); if (renderUI.bpm != S.bpm + ':' + S.div) { renderUI.bpm = S.bpm + ':' + S.div; SOUND4.tempoChanged(); } }
+  [].forEach.call(document.querySelectorAll('#readSeg [data-read]'), function (b) { var on = b.getAttribute('data-read') == S.read; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   $('vTr').textContent = (S.transpose > 0 ? '+' : '') + S.transpose;
   Array.prototype.forEach.call($('scales').children, function (b, i) { b.classList.toggle('on', i == S.scale); });
   Array.prototype.forEach.call($('mutesC').children, function (b, i) { b.setAttribute('aria-pressed', S.muteC[i]); b.querySelector('.st').textContent = S.muteC[i] ? 'MUTO' : 'ON'; });
@@ -2190,7 +2268,7 @@ function renderUI() {
 }
 function setHand(h) {
   if (S.hand == h) return;
-  S.hand = h; L = LAYOUT_V2(h); padState = {}; knobState = {}; railState = {}; railRead = {}; MX = null;
+  S.hand = h; L = LV2(h); padState = {}; knobState = {}; railState = {}; railRead = {}; MX = null;
   saveTeacher(); buildTwin(); renderUI();
   logEvent(h == 'right' ? 'base girata: destrimano, comandi a destra' : 'base girata: mancino, comandi a sinistra');
   if (source == 'image' && srcLabel.indexOf('demo') == 0) loadDemo();
@@ -2204,7 +2282,7 @@ function buildUI() {
   $('selMode').onchange = function () { S.mode = this.value; saveTeacher(); applyMode(); logEvent(S.mode == 'board' ? 'modalità: base in cartone con marker' : 'modalità: solo foglio + striscia'); if (source == 'image' && /demo/.test(srcLabel)) loadDemo(); };
   $('bFind').onclick = function () { manualPts = null; findSheet(); logEvent('cerco di nuovo foglio A4 e matrice'); };
   $('bFindSheet').onclick = function () { manualPts = null; findSheetOnly(); logEvent('cerco di nuovo solo il foglio A4'); };
-  $('bFindStrip').onclick = function () { findStripOnly(); logEvent('cerco di nuovo solo la matrice'); };
+  $('bFindStrip').onclick = function () { S.patOverride = false; findStripOnly(); logEvent('cerco di nuovo solo la matrice'); };
   $('bCorners').onclick = function () { manualPts = []; sheetLock = true; H = null; toast('Clicca i 4 angoli del foglio sull\'immagine della camera'); };
   $('bRot').onclick = function () { rot180 = !rot180; if (sheetCorners) setSheetH(sheetCorners); };
   view.addEventListener('click', function (e) {
@@ -2227,7 +2305,9 @@ function buildUI() {
   $('tZero').onclick = function () { S.transpose = 0; renderUI(); };
   $('hRight').onclick = function () { setHand('right'); };
   $('hLeft').onclick = function () { setHand('left'); };
-  $('rVol').value = S.volume; $('rVol').oninput = function () { S.volume = +this.value; if (master) master.gain.setTargetAtTime(S.volume, AC.currentTime, .03); saveTeacher(); };
+  $('rVol').value = S.volume; $('rVol').oninput = function () { S.volume = +this.value; SOUND4.setVolume(S.volume); saveTeacher(); };
+  $('bMixer').onclick = $('bMixer2').onclick = function () { SOUND4.toggle(true); };
+  [].forEach.call(document.querySelectorAll('#readSeg [data-read]'), function (b) { b.onclick = function () { setTuning('read', b.getAttribute('data-read')); }; });
   $('selSheet').value = S.sheet; $('selSheet').onchange = function () { S.sheet = this.value; saveTeacher(); };
   $('cGlide').checked = S.glide; $('cGlide').onchange = function () { S.glide = this.checked; saveTeacher(); };
   $('cCamCtl').checked = S.camCtl; $('cCamCtl').onchange = function () { S.camCtl = this.checked; saveTeacher(); };
@@ -2253,7 +2333,8 @@ function buildUI() {
     else if (k == 'ArrowUp') { S.bpm = Math.min(L.speedRange[1], S.bpm + 5); renderUI(); }
     else if (k == 'ArrowDown') { S.bpm = Math.max(L.speedRange[0], S.bpm - 5); renderUI(); }
     else if (k == 'ArrowRight') $('tUp').onclick(); else if (k == 'ArrowLeft') $('tDown').onclick();
-    else if (k == 's' || k == 'S') { S.scale = (S.scale + 1) % L.scales.length; renderUI(); }
+    else if (k == 's' || k == 'S') { S.scale = (S.scale + 1) % L.scales.length; saveTeacher(); renderUI(); }
+    else if (k == 'm' || k == 'M') SOUND4.toggle();
     else if (k == 'h' || k == 'H') setHand(S.hand == 'right' ? 'left' : 'right');
     else if (k >= '1' && k <= '5') setMute('c', +k - 1, !S.muteC[+k - 1], 'tastiera');
     else if (k >= '6' && k <= '9') setMute('d', +k - 6, !S.muteD[+k - 6], 'tastiera');
@@ -2261,6 +2342,22 @@ function buildUI() {
     if (used) e.preventDefault();
   });
   buildTwin(); buildDock(); renderUI();
+  SOUND4.buildUI({
+    tempo: function () { return { bpm: S.bpm, div: S.div }; },
+    ensureAudio: initAudioSafe, toast: toast,
+    volume: function (v) { S.volume = v; $('rVol').value = v; saveTeacher(); },
+    scales: function () { return L.scales; }, progs: function () { return PROGS; },
+    tuning: function () { var o = {}; TUNE_KEYS.forEach(function (k) { o[k] = S[k]; }); return o; },
+    setTuning: setTuning,
+    loadPattern: loadPattern,
+    kitLoaded: function (st, opt) {
+      if (opt.tempo && st.bpm) { S.bpm = st.bpm; S.div = st.div || 1; S.swing = st.swing || 0; logEvent('kit ' + st.name + ' · ' + S.bpm + ' bpm · casella 1/' + (4 * S.div) + (S.swing ? ' · swing ' + Math.round(S.swing * 100) + '%' : '')); }
+      else logEvent((opt.preset ? 'preset ' + (st.presetName || st.name) : 'kit ' + st.name));
+      SOUND4.setVolume(S.volume); saveTeacher(); renderUI();
+    },
+    sonoRebuild: function () { stopSono(); },
+    sonoDemo: function () { initAudioSafe(); var old = sonoB; ensureSono(); if (!sonoB) return; var N = sonoB.n, t = AC.currentTime + .02, lv = new Array(N).fill(0); [0, 2, 4].forEach(function (k) { lv[Math.min(N - 1, k + 5)] = .8; }); sonoB.set(t, lv); sonoB.set(t + 1.2, new Array(N).fill(0)); if (!S.playing) setTimeout(function () { if (!S.playing) stopSono(); }, 1600); }
+  })
 }
 function listCamerasSafe() { try { listCameras(); } catch (e) {} }
 function hideStart() { $('start').hidden = true; $('start').style.display = 'none'; }
@@ -2271,6 +2368,307 @@ var lastTele = 0;
 function frameLoop(t) { drawView(); updateTwin(); if (!lastTele || t - lastTele > 250) { lastTele = t || 1; updateTele(); updateDockMini(); } requestAnimationFrame(frameLoop); }
 buildUI(); readLoop(); requestAnimationFrame(frameLoop);
 logEvent('pronto · base ' + L.board.w + '×' + L.board.h + ' mm · ' + (S.hand == 'right' ? 'destrimano' : 'mancino'));
+function classifyQ(q) {
+  var h = q[0], s = q[1], v = q[2], sens = S.sens;
+  if (s > 0.24 - sens * 0.08 && v > 0.16) { /* 0,24: i pennarelli chiari (verde acqua, azzurro) sotto luce calda restano poco saturi */
+    if (h < 22 || h >= 300) return IDX.guitar;
+    if (h < 40) return h < 31 ? IDX.guitar : IDX.violin;
+    if (h < 78) return IDX.violin;
+    if (h < 192) return IDX.flute; /* verde e verde acqua */
+    if (h < 270) return IDX.piano;
+    return IDX.piano;
+  }
+  if (v < 0.40 + sens * 0.1) return IDX.bass;
+  return -1;
+}
+function expectedStrip() {
+  if (!H || !L.sheet) return null;
+  var S0 = L.sheet, MH = L.matrix.h, lv = [], x, y;
+  for (y = S0.y + 15; y < S0.y + S0.h - 15; y += 9) for (x = S0.x + 15; x < S0.x + S0.w - 15; x += 13) { var p0 = proj(H, x, y), q0 = rgbF(p0[0], p0[1]); if (q0) lv.push(q0[0] * .3 + q0[1] * .59 + q0[2] * .11); }
+  lv.sort(function (a, b) { return a - b; }); var PL = lv.length ? lv[Math.floor(lv.length * .7)] : 180;
+  function paper(xx, yy) { var p = proj(H, xx, yy), q = rgbF(p[0], p[1]); if (!q) return 0; var mx = Math.max(q[0], q[1], q[2]), sat = mx ? (mx - Math.min(q[0], q[1], q[2])) / mx : 0, l = q[0] * .3 + q[1] * .59 + q[2] * .11;
+    return sat < .16 && l > PL * .72 ? 1 : 0; }
+  function band(y0, y1) {
+    var rows = []; for (y = y0; y < y1; y += 1) { var f = 0, n = 0; for (x = S0.x + 8; x < S0.x + S0.w - 8; x += 3) { f += paper(x, y); n++; } rows.push({ y: y, f: f / n }); }
+    /* fascia più lunga con carta >= 55% (i simboli neri e le macchie abbassano un po') */
+    var best = null, i = 0;
+    while (i < rows.length) { if (rows[i].f < .55) { i++; continue; } var j = i; while (j < rows.length && rows[j].f >= .55) j++;
+      var h = rows[j - 1].y - rows[i].y + 1; if (!best || Math.abs(h - MH) < Math.abs(best.h - MH)) best = { y0: rows[i].y, y1: rows[j - 1].y + 1, h: h }; i = j; }
+    (expectedStrip.dbg || (expectedStrip.dbg = [])).push(rows.map(function (r) { return Math.round(r.f * 9); }).join(''));
+    return best && best.h > MH * .65 && best.h < MH * 1.8 ? best : null;
+  }
+  var up = band(S0.y - MH * 2.3, S0.y - 1), dn = band(S0.y + S0.h + 1, S0.y + S0.h + MH * 2.3), b = up && dn ? (Math.abs(up.h - MH) <= Math.abs(dn.h - MH) ? up : dn) : up || dn;
+  if (!b) return null;
+  /* lati: dove finisce la carta sul verde; se sporge sul tavolo bianco tengo i lati del foglio */
+  var ym = (b.y0 + b.y1) / 2, xL = S0.x, xR = S0.x + S0.w;
+  /* livello della carta della matrice (spesso più grigia del tavolo bianco): se il tavolo è più chiaro, il bordo si vede lo stesso */
+  var ls = []; for (y = b.y0 + 3; y < b.y1 - 3; y += 2) for (x = S0.x + S0.w / 2 - 60; x < S0.x + S0.w / 2 + 60; x += 3) { var pp = proj(H, x, y), qq = rgbF(pp[0], pp[1]); if (qq) ls.push(qq[0] * .3 + qq[1] * .59 + qq[2] * .11); }
+  ls.sort(function (a, c) { return a - c; }); var SL = ls.length ? ls[Math.floor(ls.length * .6)] : PL;
+  function stripPaper(xx, yy) { if (!paper(xx, yy)) return 0; var p = proj(H, xx, yy), q = rgbF(p[0], p[1]), l = q[0] * .3 + q[1] * .59 + q[2] * .11; return l < SL * 1.07 + 4 ? 1 : 0; }
+  function colF(xx) { var f = 0, n = 0; for (y = b.y0 + 4; y < b.y1 - 4; y += 2) { f += stripPaper(xx, y); n++; } return n ? f / n : 0; }
+  for (x = S0.x + S0.w / 2; x > S0.x - 40; x -= 1) if (colF(x) < .4) break; var l0 = x + 1;
+  for (x = S0.x + S0.w / 2; x < S0.x + S0.w + 40; x += 1) if (colF(x) < .4) break; var r0 = x - 1;
+  if (r0 - l0 > S0.w * .857 && r0 - l0 < S0.w * 1.29 && l0 > S0.x - 39 && r0 < S0.x + S0.w + 39) { xL = l0; xR = r0; }
+  else if (r0 - l0 >= S0.w * 1.057) { var mid = (l0 + r0) / 2; if (l0 > S0.x - 29) { xL = l0; xR = l0 + S0.w; } else if (r0 < S0.x + S0.w + 29) { xR = r0; xL = r0 - S0.w; } }
+  return [[xL, b.y0], [xR, b.y0], [xR, b.y1], [xL, b.y1]].map(function (p) { return proj(H, p[0], p[1]); });
+}
+function mxCleanBorder() {
+  var T = .22, MAXW = 10, u, v, k, i;
+  if (stripExcl) for (i = 0; i < SU * SV; i++) if (stripExcl[i]) mxInk[i] = 0;
+  function walk(start, step, count) { var run = 0; for (k = 0; k < count; k++) { if (mxInk[start + k * step] > T) run++; else break; }
+    var cut = run <= MAXW ? run : 4; for (k = 0; k < cut; k++) mxInk[start + k * step] = 0; }
+  for (v = 0; v < SV; v++) { walk(v * SU, 1, 24); walk(v * SU + SU - 1, -1, 24); }
+  for (u = 0; u < SU; u++) { walk(u, SU, 20); walk((SV - 1) * SU + u, -SU, 20); }
+}
+function tplBlobs(ink) {
+  var n = SU * SV, lab = mxLab, cu = SU / 16, cv = SV / 4, amin = cu * cv * .05, amax = cu * cv * .9, out = [], st = [], i;
+  lab.fill(0); var id = 0;
+  for (i = 0; i < n; i++) { if (lab[i] || ink[i] < .5 || (stripExcl && stripExcl[i])) continue;
+    id++; var sp = 0, a = 0, sx = 0, sy = 0, x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1; st[sp++] = i; lab[i] = id;
+    while (sp) { var k = st[--sp], x = k % SU, y = (k / SU) | 0; a++; sx += x; sy += y;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && !lab[k - 1] && ink[k - 1] >= .5) { lab[k - 1] = id; st[sp++] = k - 1; }
+      if (x < SU - 1 && !lab[k + 1] && ink[k + 1] >= .5) { lab[k + 1] = id; st[sp++] = k + 1; }
+      if (y > 0 && !lab[k - SU] && ink[k - SU] >= .5) { lab[k - SU] = id; st[sp++] = k - SU; }
+      if (y < SV - 1 && !lab[k + SU] && ink[k + SU] >= .5) { lab[k + SU] = id; st[sp++] = k + SU; } }
+    var w = x1 - x0 + 1, h = y1 - y0 + 1;
+    if (a < amin || a > amax || w > cu * 1.3 || h > cv * 1.3 || x0 == 0 || y0 == 0 || x1 == SU - 1 || y1 == SV - 1) continue;
+    var cx = sx / a, cy = sy / a;
+    out.push({ x: cx, y: cy, fill: a / (w * h), asp: (w / cu) / (h / cv), my: (cy - (y0 + y1) / 2) / h, a: a, x0: x0, x1: x1, y0: y0, y1: y1 });
+  }
+  return out;
+}
+function blobKind(b) {
+  if (Math.abs(b.my) > .07 && b.fill < .75) return b.my > 0 ? 'triU' : 'triD';
+  if (b.fill < .64 && b.asp < .85) return 'diamond';
+  if (b.fill > .86 && b.asp < .9) return 'rect';
+  if (b.fill > .66 && b.fill <= .88 && b.asp > .78 && b.asp < 1.3) return 'circle';
+  return null;
+}
+function tplBlobOrient(ink) {
+  var bl = tplBlobs(ink), N = 0, F = 0, n = 0, want = ['circle', 'triU', 'diamond', 'rect'], wantF = ['circle', 'triD', 'diamond', 'rect'];
+  bl.forEach(function (b) { var kd = blobKind(b); if (!kd) return; n++;
+    var r = Math.max(0, Math.min(3, Math.floor(b.y / (SV / 4))));
+    if (want[r] == kd) N++; if (wantF[3 - r] == kd) F++; });
+  return { blobs: bl, n: n, N: N, F: F };
+}
+function tplBlobOffset(bl, flip) {
+  var cu = SU / 16, cv = SV / 4, du = [], dv = [];
+  bl.forEach(function (b) { var x = flip ? SU - b.x : b.x, y = flip ? SV - b.y : b.y;
+    du.push(x - (Math.floor(x / cu) + .5) * cu); dv.push(y - (Math.floor(y / cv) + .5) * cv); });
+  function med(a) { a.sort(function (p, q) { return p - q; }); return a.length ? a[a.length >> 1] : 0; }
+  if (bl.length < 3) return { du: 0, dv: 0 };
+  var mu = med(du), mv = med(dv);
+  return { du: Math.abs(mu) < cu * .33 ? Math.round(mu) : 0, dv: Math.abs(mv) < cv * .33 ? Math.round(mv) : 0 };
+}
+function tplBlobFit(Hs0) {
+  fitDbg = [];
+  var Hs = Hs0, cu = SU / 16, cv = SV / 4, rowOf = { circle: 0, triU: 1, diamond: 2, rect: 3 }, info = null, any = false;
+  for (var it = 0; it < 3; it++) {
+    var G = sampleStrip(Hs); mxNormalize(G);
+    var bl = tplBlobs(mxInk), P = [];
+    var kA = (SU / TPL.w) * (SV / TPL.h);
+    bl.forEach(function (b) { var kd = blobKind(b), r = kd != null && rowOf[kd] != null ? rowOf[kd] : -1;
+      if (r < 0) return; var col = Math.max(0, Math.min(15, Math.floor(b.x / cu)));
+      /* solo forme vere: grandi come la forma stampata della loro riga e non schiacciate contro il bordo (ombre, fasce) */
+      var ar = b.a / (TPL_AREA[L.drums[r].shape] * kA); if (ar < .45 || ar > 1.9) return;
+      if (b.x0 < 4 || b.y0 < 4 || b.x1 > SU - 5 || b.y1 > SV - 5) return;
+      P.push({ t: [(col + .5) * cu, (r + .5) * cv], m: [b.x, b.y], w: 1 }); });
+    if (P.length < 3) break;
+    var cols = {}; P.forEach(function (q) { cols[Math.floor(q.t[0] / cu)] = 1; });
+    var A = null;
+    for (var pass = 0; pass < 2; pass++) {
+      /* minimi quadrati pesati: m = A · [t, 1]; ancore agli angoli con peso 1 */
+      var ob = P.filter(function (q) { return !q.out; }).map(function (q) { return [q.t, q.m, q.w]; });
+      [[0, 0], [SU, 0], [SU, SV], [0, SV]].forEach(function (k) { ob.push([k, k, .8]); });
+      A = affineLS(ob); if (!A) break;
+      P.forEach(function (q) { var p = affAp(A, q.t); q.out = Math.abs(p[0] - q.m[0]) > cu * .3 || Math.abs(p[1] - q.m[1]) > cv * .3; });
+    }
+    if (!A) break;
+    var Mf = [A[0], A[1], A[2], A[3], A[4], A[5], 0, 0, 1], inl = P.filter(function (q) { return !q.out; }), rows = {}, c0 = 99, c1 = -1;
+    inl.forEach(function (q) { rows[Math.floor(q.t[1] / cv)] = 1; var cc = Math.floor(q.t[0] / cu); c0 = Math.min(c0, cc); c1 = Math.max(c1, cc); });
+    /* tante forme ben distribuite: omografia completa (corregge anche un solo angolo letto male, tipico dell'angolo strappato) */
+    if (inl.length >= 7 && Object.keys(rows).length >= 3 && c1 - c0 >= 8) {
+      var Hh = homography(inl.map(function (q) { return q.t; }), inl.map(function (q) { return q.m; }));
+      if (Hh) { var bad = inl.some(function (q) { var p = proj(Hh, q.t[0], q.t[1]); return Math.abs(p[0] - q.m[0]) > cu * .3 || Math.abs(p[1] - q.m[1]) > cv * .3; }); if (!bad) Mf = Hh; }
+    }
+    /* spostamento massimo agli angoli: oltre mezza casella non mi fido */
+    var mv = 0, mvC = 0;
+    [[cu / 2, cv / 2], [SU - cu / 2, cv / 2], [SU - cu / 2, SV - cv / 2], [cu / 2, SV - cv / 2], [SU / 2, SV / 2]].forEach(function (k) { var p = proj(Mf, k[0], k[1]); mv = Math.max(mv, Math.abs(p[0] - k[0]) / cu, Math.abs(p[1] - k[1]) / cv); });
+    [[0, 0], [SU, 0], [SU, SV], [0, SV]].forEach(function (k) { var p = proj(Mf, k[0], k[1]); mvC = Math.max(mvC, Math.abs(p[0] - k[0]) / cu, Math.abs(p[1] - k[1]) / cv); });
+    fitDbg.push({ it: it, n: P.length, inl: inl.length, rows: Object.keys(rows).join(''), c: [c0, c1], H: Mf.length == 9 && Mf !== null && Mf[6] != 0, mv: +mv.toFixed(2), mvC: +mvC.toFixed(2), P: P.map(function (q) { return [Math.round(q.t[0] / cu - .5), Math.round(q.t[1] / cv - .5), Math.round(q.m[0]), Math.round(q.m[1]), q.out ? 1 : 0]; }) });
+    /* molte forme d'accordo (almeno 6, su almeno 2 righe): mi fido anche di uno spostamento di una riga o colonna intera */
+    var strong = inl.length >= 6 && Object.keys(rows).length >= 2;
+    if (mv > (strong ? 1.5 : .6) || mvC > (strong ? 2.2 : 1.3)) break;
+    if (mv < .04) break;
+    Hs = matMul3(Hs, Mf); any = true;
+    info = { n: P.length, used: P.filter(function (q) { return !q.out; }).length, move: +mv.toFixed(2), it: it + 1 };
+  }
+  return any ? { H: Hs, info: info } : null;
+}
+function affAp(A, p) { return [A[0] * p[0] + A[1] * p[1] + A[2], A[3] * p[0] + A[4] * p[1] + A[5]]; }
+function affineLS(ob) {
+  /* risolve due sistemi 3x3 (normali) */
+  var M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], bx = [0, 0, 0], by = [0, 0, 0];
+  ob.forEach(function (o) { var x = [o[0][0] / SU, o[0][1] / SV, 1], w = o[2];
+    for (var i = 0; i < 3; i++) { for (var j = 0; j < 3; j++) M[i][j] += w * x[i] * x[j]; bx[i] += w * x[i] * o[1][0]; by[i] += w * x[i] * o[1][1]; } });
+  var sx = solve3(M, bx), sy = solve3(M, by); if (!sx || !sy) return null;
+  return [sx[0] / SU, sx[1] / SV, sx[2], sy[0] / SU, sy[1] / SV, sy[2]];
+}
+function solve3(M, b) {
+  var a = M.map(function (r, i) { return r.concat([b[i]]); }), n = 3, i, j, k;
+  for (i = 0; i < n; i++) { var p = i; for (j = i + 1; j < n; j++) if (Math.abs(a[j][i]) > Math.abs(a[p][i])) p = j;
+    var t = a[i]; a[i] = a[p]; a[p] = t; if (Math.abs(a[i][i]) < 1e-9) return null;
+    for (j = i + 1; j < n; j++) { var f = a[j][i] / a[i][i]; for (k = i; k <= n; k++) a[j][k] -= f * a[i][k]; } }
+  var x = [0, 0, 0]; for (i = n - 1; i >= 0; i--) { var sm = a[i][n]; for (j = i + 1; j < n; j++) sm -= a[i][j] * x[j]; x[i] = sm / a[i][i]; }
+  return x;
+}
+function matMul3(A, B) { var C = []; for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) C.push(A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]); return C; }
+function tplEdgeMask(ink, th) {
+  var n = SU * SV, lab = tplLab || (tplLab = new Int32Array(n)), out = tplEdge || (tplEdge = new Uint8Array(n)), st = [], id = 0, i, B = 4;
+  lab.fill(0); out.fill(0);
+  function dk(k) { return ink[k] > th && !(stripExcl && stripExcl[k]); }
+  for (i = 0; i < n; i++) { if (lab[i] || !dk(i)) continue;
+    id++; var sp = 0, x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1, mem = []; st[sp++] = i; lab[i] = id;
+    while (sp) { var k = st[--sp], x = k % SU, y = (k / SU) | 0; mem.push(k);
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && !lab[k - 1] && dk(k - 1)) { lab[k - 1] = id; st[sp++] = k - 1; }
+      if (x < SU - 1 && !lab[k + 1] && dk(k + 1)) { lab[k + 1] = id; st[sp++] = k + 1; }
+      if (y > 0 && !lab[k - SU] && dk(k - SU)) { lab[k - SU] = id; st[sp++] = k - SU; }
+      if (y < SV - 1 && !lab[k + SU] && dk(k + SU)) { lab[k + SU] = id; st[sp++] = k + SU; } }
+    var tL = x0 < B, tR = x1 >= SU - B, tT = y0 < B, tB = y1 >= SV - B;
+    var thin = (tL && x1 - x0 < 14) || (tR && x1 - x0 < 14) || (tT && y1 - y0 < 12) || (tB && y1 - y0 < 12);
+    if ((tL || tR || tT || tB) && thin) mem.forEach(function (q) { out[q] = 1; });
+  }
+  return out;
+}
+function tplContrast(ink, cu, cv, j, edge) {
+  var poly = tplPoly(L.drums[j].shape), ku = SU / TPL.w, kv = SV / TPL.h, si = 0, ni = 0, so = 0, no = 0, x, y;
+  for (y = -9; y <= 9; y += .6) for (x = -9; x <= 9; x += .6) {
+    var u = Math.round(cu + x * ku), v = Math.round(cv + y * kv); if (u < 0 || v < 0 || u >= SU || v >= SV) continue;
+    var q = v * SU + u; if (stripExcl && stripExcl[q]) continue;
+    var val = Math.min(1, ink[q] * 1.6);
+    if (inPoly(poly, x / .8, y / .8)) { si += val; ni++; } else if (!inPoly(poly, x / 1.3, y / 1.3)) { so += val; no++; }
+  }
+  return { inn: ni ? si / ni : 0, out: no ? so / no : 0 };
+}
+function readFine(wb) {
+  var R = L.read, cw = R.w / FC, rh = R.h / ROWS, c, r, n = FC * ROWS, cls = new Int8Array(n), dk = new Uint8Array(n), ok = true;
+  for (c = 0; c < FC; c++) {
+    var inked = 0, x = R.x + (c + .5) * cw;
+    for (r = 0; r < ROWS; r++) {
+      var rgb = rgbAt(x, R.y + (r + .5) * rh), i = c * ROWS + r; if (!rgb) { ok = false; cls[i] = -1; continue; }
+      var q = hsv(rgb, wb), ci = classifyQ(q); cls[i] = ci; if (ci >= 0) inked++;
+      dk[i] = Math.round(255 * Math.max(0, Math.min(1, (1 - Math.min(1, q[2])) * 1.6 + q[1] * .8 - .12)));
+    }
+    if (inked > ROWS * .45) for (r = 0; r < ROWS; r++) { var j = c * ROWS + r; cls[j] = fineCls[j]; dk[j] = fineDark[j]; } /* una mano sopra: tengo com'era */
+  }
+  if (!ok || S.freeze) return;
+  var h = 0;
+  for (var k = 0; k < n; k++) {
+    if (!finePrev || cls[k] == finePrev[k]) fineCls[k] = cls[k];
+    fineDark[k] = (fineDark[k] + dk[k]) >> 1;
+    h = (h * 31 + fineCls[k] + 2) | 0;
+  }
+  finePrev = cls;
+  if (h != fineHash) { fineHash = h; tracks = buildTracks(); fineVer++; }
+}
+function trAmp(len) { var mm = len * L.read.h / ROWS; return Math.min(1, .15 + .85 * Math.pow(Math.min(1, mm / 14), .75)); }
+function buildTracks() {
+  var out = [], MAXJ = 5;
+  for (var ins = 0; ins < NI; ins++) {
+    var active = [];
+    for (var c = 0; c < FC; c++) {
+      var pts = [], start = -1, gap = 0, r;
+      for (r = 0; r <= ROWS; r++) {
+        var hit = r < ROWS && fineCls[c * ROWS + r] == ins;
+        if (hit) { if (start < 0) start = r; gap = 0; }
+        else if (start >= 0) { gap++; if (gap > 1 || r == ROWS) { var end = r - gap; pts.push({ y: 1 - ((start + end) / 2 + .5) / ROWS, a: trAmp(end - start + 1) }); start = -1; gap = 0; } }
+      }
+      var pairs = [], usedT = {}, usedP = {}, born = [];
+      active.forEach(function (tr, ti) { pts.forEach(function (p, pi) { var d = Math.abs(tr.y - p.y) * ROWS; if (d <= MAXJ + tr.miss * 2) pairs.push([d, ti, pi]); }); });
+      pairs.sort(function (a, b) { return a[0] - b[0]; });
+      pairs.forEach(function (q) { if (usedT[q[1]] || usedP[q[2]]) return; usedT[q[1]] = usedP[q[2]] = 1; var tr = active[q[1]], p = pts[q[2]]; tr.pts.push([c, p.y, p.a]); tr.y = p.y; tr.miss = 0; });
+      pts.forEach(function (p, pi) {
+        if (usedP[pi]) return;
+        var tr = { i: ins, pts: [], y: p.y, miss: 0 }, best = null, bd = 1e9;
+        active.forEach(function (t, ti) { if (!usedT[ti]) return; var pr = t.pts[t.pts.length - 2]; if (!pr || pr[0] != c - 1) return; var d = Math.abs(pr[1] - p.y) * ROWS; if (d < bd && d <= MAXJ * 2.5) { bd = d; best = pr; } });
+        if (best) tr.pts.push([c - 1, best[1], best[2]]);
+        tr.pts.push([c, p.y, p.a]); born.push(tr);
+      });
+      active.forEach(function (t, ti) {
+        if (usedT[ti]) return;
+        var near = null, bd = 1e9;
+        pts.forEach(function (p, pi) { if (!usedP[pi]) return; var d = Math.abs(p.y - t.y) * ROWS; if (d < bd && d <= MAXJ * 2.5) { bd = d; near = p; } });
+        if (near) { t.pts.push([c, near.y, near.a]); t.done = true; } else if (++t.miss > 1) t.done = true;
+      });
+      active = active.filter(function (t) { if (t.done) out.push(t); return !t.done; }).concat(born);
+    }
+    active.forEach(function (t) { out.push(t); });
+  }
+  out.forEach(function (t) { delete t.done; delete t.miss; });
+  return out;
+}
+function keySteps() { var k = S.key | 0; return (L.scales[S.scale] || L.scales[0]).steps.map(function (s) { return (s + k) % 12; }); }
+function chordAt(c) { var p = PROGS[S.prog | 0]; if (!p || !p.ch || c == null) return null; var e = p.ch[Math.floor(c / 16) % p.ch.length], root = (e[0] + (S.key | 0)) % 12; return { root: root, tones: CHORDS[e[1]].map(function (x) { return (root + x) % 12; }) }; }
+function nearestPc(m, pcs, maxD) { for (var d = 0; d <= maxD; d++) { if (pcs.indexOf(((m - d) % 12 + 12) % 12) >= 0) return m - d; if (pcs.indexOf(((m + d) % 12 + 12) % 12) >= 0) return m + d; } return m; }
+function sonoMidis() { return scaleNotes(48, 84, keySteps()).map(function (m) { return m + S.transpose; }); }
+function ensureSono() { var ms = sonoMidis(), key = ms.join(','); if (sonoB && sonoB.key == key) return; stopSono(); sonoB = SOUND4.sonoBank(ms); if (sonoB) sonoB.key = key; }
+function stopSono() { if (sonoB) { sonoB.stop(); sonoB = null; } }
+function sonoLevels(fc, N) {
+  var out = new Array(N).fill(0), base = fc * ROWS;
+  for (var b = 0; b < N; b++) { var r0 = Math.floor((1 - (b + 1) / N) * ROWS), r1 = Math.floor((1 - b / N) * ROWS), sm = 0, k = 0; for (var r = r0; r < r1; r++) { sm += fineDark[base + r]; k++; } var v = k ? sm / k / 255 : 0; out[b] = Math.max(0, Math.min(1, (v - .1) / .5)); }
+  return out;
+}
+function swingOff(c) { return Math.floor(c / 4) % 2 == 1 ? (S.swing || 0) * colDur() * 4 * .66 : 0; }
+function trPitch(i, y, c) { return S.trattoPitch == 'free' ? contMidi({ i: i, y: y }) + S.transpose : midiOf({ i: i, y: y, c: c }); }
+function scheduleTracks(c, t) {
+  var cd = colDur(), n = 0;
+  tracks.forEach(function (tr) {
+    var f0 = tr.pts[0][0]; if ((f0 >> 2) != c || n >= 18) return; n++;
+    var t0 = t + (f0 / 4 - c) * cd, last = tr.pts[tr.pts.length - 1][0], dur = Math.max(.07, ((last - f0) / 4 + .25) * cd), path = [], amp = [];
+    tr.pts.forEach(function (p) { var tt = t + (p[0] / 4 - c) * cd + cd / 8; path.push([tt, trPitch(tr.i, p[1], p[0] >> 2)]); amp.push([tt, p[2]]); });
+    SOUND4.playNote(tr.i, path[0][1], t0, dur, { path: path, amp: amp });
+  });
+}
+function scheduleSono(c, t) { ensureSono(); if (!sonoB) return; var cd = colDur(); for (var q = 0; q < 4; q++) sonoB.set(t + q * cd / 4, sonoLevels(c * 4 + q, sonoB.n)); }
+function twTracks() {
+  var R = L.read, fw = R.w / FC, s = '';
+  function X(c) { return r2(R.x + (c + .5) * fw); } function Y(y) { return r2(R.y + (1 - y) * R.h); } function W(a) { return Math.round((.7 + a * 4.6) * 2) / 2; }
+  tracks.forEach(function (tr) {
+    var col = L.instruments[tr.i].color, op = S.muteC[tr.i] ? .22 : .92, P = tr.pts;
+    if (P.length == 1) { s += '<circle cx="' + X(P[0][0]) + '" cy="' + Y(P[0][1]) + '" r="' + r2(W(P[0][2]) / 2 + .4) + '" fill="' + col + '" opacity="' + op + '"/>'; return; }
+    var k = 1;
+    while (k < P.length) { var w = W((P[k - 1][2] + P[k][2]) / 2), d = 'M' + X(P[k - 1][0]) + ' ' + Y(P[k - 1][1]);
+      while (k < P.length && W((P[k - 1][2] + P[k][2]) / 2) == w) { d += 'L' + X(P[k][0]) + ' ' + Y(P[k][1]); k++; }
+      s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round" opacity="' + op + '"/>'; }
+  });
+  return s;
+}
+function twSono() {
+  var R = L.read, fw = R.w / FC, N = scaleNotes(48, 84, keySteps()).length, bh = R.h / N, s = '';
+  for (var b = 0; b < N; b++) s += '<line x1="' + R.x + '" x2="' + r2(R.x + R.w) + '" y1="' + r2(R.y + R.h - b * bh) + '" y2="' + r2(R.y + R.h - b * bh) + '" stroke="#e4ded2" stroke-width=".25"/>';
+  for (var c = 0; c < FC; c += 2) { var lv = sonoLevels(c, N);
+    lv.forEach(function (v, b) { if (v > .06) s += '<rect x="' + r2(R.x + c * fw) + '" y="' + r2(R.y + R.h - (b + 1) * bh) + '" width="' + r2(fw * 2 + .05) + '" height="' + r2(bh) + '" fill="#7a5cff" opacity="' + r2(.15 + v * .8) + '"/>'; }); }
+  return s;
+}
+function setTuning(k, v) {
+  if (k == 'bpm') v = Math.max(50, Math.min(480, Math.round(v)));
+  if (S[k] === v) return;
+  S[k] = v;
+  if (k == 'read') { if (v != 'sonograf') stopSono(); fineHash = 0; finePrev = null; logEvent('lettura: ' + { note: 'note', tratto: 'tratto continuo', sonograf: 'Sonograf' }[v]); toast({ note: 'Lettura a note', tratto: 'Lettura Tratto: il suono segue il segno', sonograf: 'Lettura Sonograf: il nero suona' }[v]); }
+  else if (k == 'key') logEvent('tonalità ' + ['Do', 'Do#', 'Re', 'Mib', 'Mi', 'Fa', 'Fa#', 'Sol', 'Lab', 'La', 'Sib', 'Si'][v]);
+  else if (k == 'scale') logEvent('scala ' + L.scales[v].name.toLowerCase());
+  else if (k == 'prog') logEvent('giro: ' + PROGS[v].name);
+  if (k == 'key' || k == 'scale') stopSono();
+  saveTeacher(); renderUI();
+}
+function loadPattern(rows) {
+  for (var i = 0; i < ND; i++) for (var j = 0; j < 16; j++) grid[i][j] = rows[i][j] == '1';
+  S.patOverride = true;
+  toast('Ritmo d\'esempio nella matrice · per tornare a quella letta dalla camera premi "Solo matrice"');
+}
+
 window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, _dbg: function (f) { return f({ get stripCands() { return stripCands; }, planeSize: planeSize, toPlane: toPlane, get sheetCorners() { return sheetCorners; }, refineQuad1: refineQuad1, get refineDbg() { return refineDbg; }, lastShapes: lastShapes, detectSheet: detectSheet, tplScore: tplScore, tplRegister: tplRegister, mxNormalize: mxNormalize, lastTplTry: lastTplTry, sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV, midiOf: midiOf, contMidi: contMidi }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
 })();
 </script>

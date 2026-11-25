@@ -65,6 +65,13 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
 #camHelp ol{margin:6px 0 0;padding-left:20px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:90vw}
 #toast.show{opacity:1}
+.vers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:20px}
+.vers-t{grid-column:1/-1;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.vbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:17px;font-weight:700;padding:12px 8px;min-height:64px;border-radius:14px;text-decoration:none;color:var(--ink)}
+.vbtn small{font-size:11px;font-weight:500;color:var(--muted);line-height:1.2}
+.vbtn.rec{background:var(--ink);color:var(--bg);border-color:var(--ink)} .vbtn.rec small{color:var(--bg);opacity:.75}
+.vbtn.on{outline:2px solid var(--ink);outline-offset:-2px}
+@media (max-width:560px){.vers{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -72,15 +79,19 @@ kbd{font:12px var(--mono);border:1px solid var(--line);border-radius:5px;padding
   <div class="box">
     <h2>Lettore di disegni</h2>
     <p>Metti il telefono sopra la base, con i 4 marker neri nell'inquadratura. Il disegno e la matrice suonano da sinistra a destra.</p>
-    <button class="go" id="goCam">Accendi con la camera</button>
+    <button class="go" id="goCam">Accendi v1 con la camera</button>
     <div class="alt">
       <button class="btn" id="goDemo">Prova la demo senza camera</button>
       <label class="btn" style="display:inline-flex;align-items:center">Usa una foto<input type="file" accept="image/*" id="goPhoto" hidden></label>
     </div>
     <div id="camHelp" hidden></div>
-    <p style="margin:16px 0 0"><a href="v4.html"><b>Versione 4</b>: fogli A5 sul tappetino da taglio verde</a></p>
-    <p style="margin:8px 0 0"><a href="v3.html"><b>Versione 3</b>: la nuova versione</a></p>
-    <p style="margin:8px 0 0"><a href="v2.html"><b>Versione 2</b>: interfaccia del workshop in cartone</a></p>
+    <div class="vers" role="navigation" aria-label="Versioni">
+      <span class="vers-t">Scegli la versione</span>
+      <button class="btn vbtn on" id="vV1" title="Sei qui: base con 4 marker" onclick="document.getElementById('goCam').click()">v1<small>base con marker</small></button>
+      <a class="btn vbtn rec" href="v2.html">v2 workshop<small>cartone con angoli neri · mixer</small></a>
+      <a class="btn vbtn" href="v3.html">v3<small>nuova versione</small></a>
+      <a class="btn vbtn" href="v4.html">v4<small>A5 sul tappetino verde</small></a>
+    </div>
     <p class="muted" style="margin-top:18px">Serve il volume alto e il permesso per la fotocamera. Su computer puoi scegliere la camera del telefono nel pannello Maestra.</p>
   </div>
 </div>
