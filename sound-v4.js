@@ -557,7 +557,7 @@ function buildTune() {
   var scales = hooks.scales ? hooks.scales() : [];
   sec('Scala', [select('Scala', scales.map(function (s, i) { return [i, s.name + (s.hint ? ' · ' + s.hint : '')]; }), function () { return T().scale; }, function (v) { set('scale', +v); }),
     select('Altezza sul foglio', [['bands', 'Fasce uguali: una per ogni nota della scala'], ['keys', 'Tasti: cromatico, poi la nota più vicina della scala']], function () { return T().map; }, function (v) { set('map', v); }),
-    select('Tratto: intonazione', [['scale', 'Agganciata alla scala (scivola tra le note)'], ['free', 'Libera (glissando continuo, come il tratto)']], function () { return T().trattoPitch; }, function (v) { set('trattoPitch', v); })], '',
+    select('Tratto: intonazione', [['auto', 'Autotune: ogni tratto sulle note giuste dell\'armonia (consigliato)'], ['scale', 'Agganciata alla scala (scivola tra le note)'], ['free', 'Libera (glissando continuo, come il tratto)']], function () { return T().trattoPitch; }, function (v) { set('trattoPitch', v); })], '',
     'Con le <b>fasce uguali</b> ogni nota della scala ha la stessa altezza sul foglio: è più facile centrare le note e tutto resta intonato.');
   var progs = hooks.progs ? hooks.progs() : [];
   sec('Armonia', [select('Giro di accordi', progs.map(function (p, i) { return [i, p.name]; }), function () { return T().prog; }, function (v) { set('prog', +v); }),

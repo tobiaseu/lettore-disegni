@@ -412,7 +412,7 @@ var S = {
   muteC: new Array(NI).fill(false), muteD: new Array(ND).fill(false),
   volume: 0.8, sheet: 'inst', camCtl: true, mode: 'board', sens: 0, freeze: false, debug: false, hand: 'right', glide: true, lay: { zones: true, notes: true },
   /* accordatura e lettura (mixer › Accordatura e lettura) */
-  key: 0, map: 'bands', prog: 0, follow: 'off', bassRoot: false, read: 'note', trattoPitch: 'scale', div: 1, swing: 0, patOverride: false
+  key: 0, map: 'bands', prog: 0, follow: 'off', bassRoot: false, read: 'note', trattoPitch: 'auto', div: 1, swing: 0, patOverride: false
 };
 var TUNE_KEYS = ['key', 'scale', 'map', 'prog', 'follow', 'bassRoot', 'read', 'trattoPitch', 'div', 'swing', 'bpm', 'transpose'];
 try { var saved = JSON.parse(localStorage.getItem('lettore-v4') || '{}'); ['volume', 'sheet', 'camCtl', 'sens', 'mode', 'hand', 'glide'].concat(TUNE_KEYS).forEach(function (k) { if (k in saved) S[k] = saved[k]; }); if (!saved.sv) S.sheet = 'inst'; } catch (e) {}
@@ -1967,12 +1967,48 @@ var nextCol = 0, nextTime = 0, timer = null, queue = [], stopAt = null;
 function colDur() { return 60 / S.bpm / 4 / (S.div || 1); }
 /* swing: le caselle pari (2a, 4a, ...) arrivano un po' dopo */
 function swingOff(c) { return Math.floor(c / 4) % 2 == 1 ? (S.swing || 0) * colDur() * 4 * .66 : 0; }
+/* AUTOTUNE del Tratto (come la scala Sole, ma spinta al massimo).
+   Note permesse in ogni punto del tratto:
+   - senza giro di accordi: pentatonica della tonalità (maggiore o minore secondo la scala scelta): nessuna nota stona;
+   - con un giro: sui battiti forti solo le note dell'accordo, fuori dai battiti accordo + pentatonica senza le note
+     a un semitono sopra l'accordo (quelle che "graffiano");
+   - basso: fondamentale e quinta dell'accordo (o della tonalità).
+   Isteresi: il tratto cambia nota solo quando si avvicina davvero a quella nuova (niente tremolio tra due note),
+   poi ci arriva con uno scivolamento cortissimo, come l'autotune "a gradini". */
+function autoPcs(i, cc) {
+  var k = S.key | 0, st = (L.scales[S.scale] || L.scales[0]).steps, minor = st.indexOf(3) >= 0 && st.indexOf(4) < 0;
+  var pent = (minor ? [0, 3, 5, 7, 10] : [0, 2, 4, 7, 9]).map(function (x) { return (x + k) % 12; });
+  var ch = chordAt(cc), strong = cc % 4 == 0, bass = L.instruments[i].key == 'bass';
+  if (bass) return ch ? (strong ? [ch.root] : [ch.root, (ch.root + 7) % 12]) : (strong ? [k] : [k, (k + 7) % 12, pent[minor ? 1 : 2]]);
+  if (!ch) return pent;
+  if (strong) return ch.tones;
+  return ch.tones.concat(pent.filter(function (p) { return ch.tones.indexOf(p) < 0 && ch.tones.every(function (q) { return (p - q + 12) % 12 != 1; }); }));
+}
+function autoNear(raw, pcs) { var b = null; for (var m = Math.floor(raw) - 7; m <= Math.ceil(raw) + 7; m++) if (pcs.indexOf(((m % 12) + 12) % 12) >= 0 && (b == null || Math.abs(m - raw) < Math.abs(b - raw))) b = m; return b == null ? Math.round(raw) : b; }
+function autoPath(tr, tBase, c, cd) {
+  var path = [], cur = null, gl = Math.min(.03, cd / 6);
+  tr.pts.forEach(function (p, k) {
+    var tt = tBase + (p[0] / 4 - c) * cd + (k ? cd / 8 : 0), cc = p[0] >> 2, pcs = autoPcs(tr.i, cc), raw = contMidi({ i: tr.i, y: p[1] }), cand = autoNear(raw, pcs), nx = cur;
+    if (cur == null) nx = cand;
+    else if (pcs.indexOf(((cur % 12) + 12) % 12) < 0) nx = autoNear(cur + (raw - cur) * .5, pcs); /* l'accordo è cambiato: nota dell'accordo più vicina */
+    else if (cand != cur && Math.abs(raw - cand) + .45 < Math.abs(raw - cur)) nx = cand;
+    if (cur != null && nx != cur && path.length) { var tp = Math.max(path[path.length - 1][0] + .001, tt - gl); path.push([tp, cur + S.transpose]); }
+    cur = nx; path.push([Math.max(tt, path.length ? path[path.length - 1][0] + .001 : tt), cur + S.transpose]);
+  });
+  return path;
+}
 function trPitch(i, y, c) { return S.trattoPitch == 'free' ? contMidi({ i: i, y: y }) + S.transpose : midiOf({ i: i, y: y, c: c }); }
 function scheduleTracks(c, t) {
   var cd = colDur(), n = 0;
   tracks.forEach(function (tr) {
     var f0 = tr.pts[0][0]; if ((f0 >> 2) != c || n >= 18) return; n++;
     var t0 = t + (f0 / 4 - c) * cd, last = tr.pts[tr.pts.length - 1][0], dur = Math.max(.07, ((last - f0) / 4 + .25) * cd), path = [], amp = [];
+    if (S.trattoPitch == 'auto') {
+      /* autotune: attacco sulla griglia (1/16) e altezza agganciata alle note giuste dell'armonia, a gradini netti */
+      var sh = (f0 / 4 - c) * cd; t0 = t; path = autoPath(tr, t - sh, c, cd);
+      tr.pts.forEach(function (p) { amp.push([t + (p[0] / 4 - c) * cd - sh + cd / 8, p[2]]); });
+      SOUND4.playNote(tr.i, path[0][1], t0, dur, { path: path, amp: amp }); return;
+    }
     tr.pts.forEach(function (p) { var tt = t + (p[0] / 4 - c) * cd + cd / 8; path.push([tt, trPitch(tr.i, p[1], p[0] >> 2)]); amp.push([tt, p[2]]); });
     SOUND4.playNote(tr.i, path[0][1], t0, dur, { path: path, amp: amp });
   });
