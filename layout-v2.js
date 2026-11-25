@@ -18,7 +18,9 @@
      margine 60 mm per i marker                       ->  base 533 x 445 mm (base vecchia, fino al 25 Nov)
 
    25 Nov 2026 · base nuova di Tobia (quella vera, in cartone con angoli neri, senza binario dei muti):
-     dall'alto: matrice stampata 297 x 74,25 · foglio A4 orizzontale 297 x 210 · striscia comandi 297 x 75
+     dall'alto (lato della camera): matrice stampata 297 x 74,25 · foglio A4 orizzontale 297 x 210 · pulsantiera.
+     La camera guarda dal lato della matrice, i bambini stanno dal lato della pulsantiera: nell'immagine tutto è
+     girato di 180° e il programma lo raddrizza da solo (la matrice deve stare "sopra" il foglio).
      striscia comandi: START · STOP e RESTART (quadrati 58 mm con cornice nera) dal lato dove comincia
      il tempo, SPEED (disco con un pallino nero a 3/4 del raggio) dall'altro lato.
      Mano: 'right' = SPEED a destra (come nella foto), 'left' = SPEED a sinistra, pulsanti a destra.
@@ -26,19 +28,23 @@
 
 function LAYOUT_V2(hand) {
   hand = hand == 'left' ? 'left' : 'right';
-  var M = 50, GAP = 15, MATH = 74.25, CTLH = 75, BW = M * 2 + 297, BH = M * 2 + MATH + GAP + 210 + GAP + CTLH;
-  var sx = M, my = M, sy = my + MATH + GAP, cy = sy + 210 + GAP;
-  var PS = 58, padY = cy + CTLH / 2, R = hand == 'right';
-  var xPlay = R ? sx + 8 + PS / 2 : sx + 297 - 8 - PS / 2, xRestart = R ? xPlay + PS + 10 : xPlay - PS - 10, xSpeed = R ? sx + 297 - 42 : sx + 42;
+  /* misure prese dalla foto della camera di Tobia (25 Nov, 18:01): matrice a 40 mm dal foglio, comandi a ~38 mm dal
+     bordo del foglio, pulsanti neri 45 mm con icone bianche, SPEED disco nero da 34 mm con segno bianco */
+  /* misurate sulla foto riproiettata nel piano del foglio: matrice 41 mm sopra il foglio, pulsantiera da 25 a 82 mm sotto,
+     START · STOP al centro x 40, RESTART x 96 (quadrati ~48 mm), SPEED x 278 (disco r 18,5) */
+  var M = 40, GAPM = 41, GAPC = 25, MATH = 74.25, CTLH = 57, BW = M * 2 + 297, BH = M * 2 + MATH + GAPM + 210 + GAPC + CTLH;
+  var sx = M, my = M, sy = my + MATH + GAPM, cy = sy + 210 + GAPC;
+  var PS = 48, padY = sy + 210 + 53, R = hand == 'right';
+  var xPlay = R ? sx + 40 : sx + 297 - 40, xRestart = R ? sx + 96 : sx + 297 - 96, xSpeed = R ? sx + 278 : sx + 297 - 278;
   var L = {
     version: 'v2', hand: hand,
     board: { w: BW, h: BH },
     content: { x: M, y: M, w: 297, h: BH - 2 * M },
     markers: [
-      { id: 0, x: 24, y: 24, size: 34, name: 'in alto a sinistra' },
-      { id: 1, x: BW - 24, y: 24, size: 34, name: 'in alto a destra' },
-      { id: 2, x: BW - 24, y: BH - 24, size: 34, name: 'in basso a destra' },
-      { id: 3, x: 24, y: BH - 24, size: 34, name: 'in basso a sinistra' }
+      { id: 0, x: 20, y: 20, size: 30, name: 'in alto a sinistra' },
+      { id: 1, x: BW - 20, y: 20, size: 30, name: 'in alto a destra' },
+      { id: 2, x: BW - 20, y: BH - 20, size: 30, name: 'in basso a destra' },
+      { id: 3, x: 20, y: BH - 20, size: 30, name: 'in basso a sinistra' }
     ],
     panel: { x: sx, y: cy, w: 297, h: CTLH },
     rail: null,
@@ -48,10 +54,10 @@ function LAYOUT_V2(hand) {
     matrixCard: { x: sx, y: my, w: 297, h: MATH },
     matrix: { x: sx, y: my, w: 297, h: MATH, rows: 4, cols: 16 },
     pads: {
-      play:    { x: xPlay, y: padY, r: 27, size: PS, name: 'START · STOP' },
-      restart: { x: xRestart, y: padY, r: 27, size: PS, name: 'RESTART' }
+      play:    { x: xPlay, y: padY, r: 20, size: PS, name: 'START · STOP' },
+      restart: { x: xRestart, y: padY, r: 20, size: PS, name: 'RESTART' }
     },
-    knobs: { speed: { x: xSpeed, y: padY, r: 30, dot: 22.5, name: 'SPEED' } },
+    knobs: { speed: { x: xSpeed, y: sy + 210 + 60, r: 18.5, dot: 13.9, name: 'SPEED' } },
     speedRange: [50, 480], transposeRange: 6
   };
   /* copio da layout.js quello che non cambia */

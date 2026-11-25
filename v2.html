@@ -387,7 +387,7 @@ body{padding-bottom:44px}
         <ul><li>Colonna comandi <b>70 × 325</b>: SPEED in alto, RESTART, START · STOP in basso (cerchi Ø 54).</li>
         <li>Matrice stampata <b>297 × 74,25</b> in alto (16 × 4 caselle quadrate da 18,56 mm), tenuta da angoli neri.</li>
         <li>Foglio <b>A4 297 × 210</b> 15 mm sotto, letto 285 × 198 (6 mm di margine).</li>
-        <li>Striscia comandi <b>297 × 75</b> sotto il foglio: START · STOP e RESTART (quadrati 58 mm con cornice nera), SPEED (disco con pallino a 3/4 del raggio).</li>
+        <li>Pulsantiera sotto il foglio (lato dei bambini): START · STOP e RESTART neri con icona bianca (~48 mm), SPEED disco nero con segno bianco a 3/4 del raggio. La camera sta dal lato della matrice: l'immagine viene girata da sola.</li>
         <li>Destrimano: SPEED a destra. Mancino: SPEED a sinistra. Se la base vera ha misure diverse: "Segna comandi" sopra la camera.</li></ul></div>
       <div class="card"><h3>Regole del suono</h3>
         <div class="legend" id="legendC"></div>
@@ -735,7 +735,36 @@ function readSheet() {
 /* ---------------- lettura dei comandi ---------------- */
 var padState = {}, knobState = {};
 /* posizione dei comandi per la camera: quella del progetto, oppure quella segnata a mano sulla base vera ("Segna comandi") */
-function padPos(key) { var p = key == 'speed' ? L.knobs.speed : L.pads[key], c = S.ctl && S.ctl[key]; if (!c) return p; var o = {}; for (var k in p) o[k] = p[k]; o.x = c[0]; o.y = c[1]; return o; }
+function padPos(key) {
+  var p = key == 'speed' ? L.knobs.speed : L.pads[key], c = S.ctl && S.ctl[key], f = ctlRef[key], o = {}; for (var k in p) o[k] = p[k];
+  if (c) { o.x = c[0]; o.y = c[1]; }
+  if (f) { o.x = f.x; o.y = f.y; if (key == 'speed' && f.r) { o.r = f.r; o.dot = f.r * .75; } }
+  return o;
+}
+/* aggancio fine dei comandi neri: intorno alla posizione prevista cerco la macchia scura (pulsante o disco nero) e ne prendo
+   il centro e la grandezza. Così piccoli errori di misura della base non spostano i comandi. Si rifà ogni 1,5 s se non
+   c'è una mano sopra. */
+var ctlRef = {}, ctlRefAt = 0;
+function refineCtl() {
+  var now = performance.now(); if (now - ctlRefAt < 1500) return; ctlRefAt = now;
+  ['play', 'restart', 'speed'].forEach(function (key) {
+    var p0 = key == 'speed' ? L.knobs.speed : L.pads[key], c = S.ctl && S.ctl[key], cx = c ? c[0] : p0.x, cy = c ? c[1] : p0.y, half = key == 'speed' ? p0.r * 1.45 : p0.size * .62, st = 1.2, pts = [], x, y;
+    if (padState[key] && padState[key].on) return;
+    for (y = cy - half; y <= cy + half; y += st) for (x = cx - half; x <= cx + half; x += st) { var q = rgbAt(x, y); if (q) pts.push([x, y, q[0] * .3 + q[1] * .59 + q[2] * .11]); }
+    if (pts.length < 40) return;
+    var ls = pts.map(function (t) { return t[2]; }).sort(function (a, b) { return a - b; }), lo = ls[Math.floor(ls.length * .05)], md = ls[Math.floor(ls.length * .6)];
+    if (md - lo < 40) { delete ctlRef[key]; return; } /* niente di nero e netto qui */
+    var th = lo + (md - lo) * .45, sx = 0, sy = 0, n = 0;
+    pts.forEach(function (t) { if (t[2] < th) { sx += t[0]; sy += t[1]; n++; } });
+    var area = n * st * st, want = key == 'speed' ? Math.PI * p0.r * p0.r : p0.size * p0.size;
+    if (area < want * .35 || area > want * 2.2) { delete ctlRef[key]; return; }
+    var nx = sx / n, ny = sy / n, old = ctlRef[key];
+    if (Math.hypot(nx - cx, ny - cy) > 9) { delete ctlRef[key]; return; } /* troppo lontano dal previsto: non mi fido */
+    var nr = { x: old ? old.x * .5 + nx * .5 : nx, y: old ? old.y * .5 + ny * .5 : ny, r: key == 'speed' ? Math.min(p0.r * 1.3, Math.max(p0.r * .7, Math.sqrt(area / Math.PI))) : null };
+    if (!old || Math.hypot(nr.x - old.x, nr.y - old.y) > 2) { if (padState[key]) delete padState[key]; } /* spostato: nuova base per il dito */
+    ctlRef[key] = nr;
+  });
+}
 function padInk(x, y, r) {
   var pts = [[0, 0]], k, tot = 0, n = 0;
   for (k = 0; k < 6; k++) { var a = k * Math.PI / 3; pts.push([Math.cos(a) * r * .35, Math.sin(a) * r * .35]); }
@@ -774,7 +803,7 @@ function padCovered(key, x, y, r) {
   var score = occ == null ? (S.mode == 'sheet' && !S.ctl ? 0 : d) : Math.max(d, Math.min(.3, occ * 1.1) + d * .6);
   st.noFrame = occ == null;
   st.ink = score;
-  var want = st.on ? score > .08 : score > .14, now = performance.now();
+  var want = st.on ? score > .13 : score > .2, now = performance.now();
   if (!want && d < .07) cur.forEach(function (c, i) { for (var j = 0; j < 3; j++) st.bp[i][j] = st.bp[i][j] * .92 + c[j] * .08; });
   if (st.on && now - st.onAt > 9000) { st.bp = cur.map(function (c) { return c.slice(); }); st.fl = null; st.on = false; st.cnt = 0; return { changed: true, on: false }; } /* qualcosa appoggiato sopra: nuova base */
   if (want != st.on) { st.cnt++; if (st.cnt >= 2) { st.on = want; st.cnt = 0; if (want) st.onAt = now; return { changed: true, on: want }; } }
@@ -784,8 +813,12 @@ function padCovered(key, x, y, r) {
 function knobAngle(k) {
   var N = 48, vals = [], i;
   for (i = 0; i < N; i++) { var a = i * 360 / N, p = BOARD.polar(k.x, k.y, k.dot, a), rgb = rgbAt(p[0], p[1]); if (!rgb) return null; vals.push(hsv(rgb, wbPanel)[2]); }
+  var sorted = vals.slice().sort(function (a, b) { return a - b; }), med = sorted[N >> 1];
+  if (med < .4) { /* disco NERO con il segno BIANCO (pulsantiera nuova): cerco il punto più chiaro */
+    vals = vals.map(function (v) { return 1 - v; }); sorted = vals.slice().sort(function (a, b) { return a - b; }); med = sorted[N >> 1];
+  }
   var mi = 0; for (i = 1; i < N; i++) if (vals[i] < vals[mi]) mi = i;
-  var sorted = vals.slice().sort(function (a, b) { return a - b; }), med = sorted[N >> 1], dark = vals.filter(function (v) { return v < med * .6; }).length;
+  var dark = vals.filter(function (v) { return v < med * .6; }).length;
   if (vals[mi] > med * .55 || dark > 12 || med < .45) return null; /* coperto da una mano o non visibile */
   var sx = 0, sy = 0;
   for (var d = -3; d <= 3; d++) { var j = (mi + d + N) % N, w = Math.max(0, med * .7 - vals[j]), an = j * 2 * Math.PI / N; sx += w * Math.sin(an); sy += w * Math.cos(an); }
@@ -805,6 +838,7 @@ function readControls() {
   for (var x = P.x + 8; x < P.x + P.w; x += 12) for (var y = P.y + 6; y < P.y + P.h; y += 12) { var sm = rgbAt(x, y); if (sm) samples.push(sm); }
   if (samples.length < 12) return; /* striscia dei comandi fuori dall'inquadratura */
   wbPanel = wbSheet;
+  if (S.mode == 'sheet') refineCtl();
   var pd = { play: padPos('play'), restart: padPos('restart') }, res;
   if (L.muteC) readRails();
   res = padCovered('play', pd.play.x, pd.play.y, pd.play.r); if (res && res.changed && res.on) { initAudioSafe(); logEvent('START · STOP premuto · dito sul cartone'); fingerOn('play'); togglePlay(); }
@@ -881,9 +915,10 @@ function detectSheet(detW) {
     if (dist(c[0], c[3]) > dist(c[0], c[1])) c = [c[3], c[0], c[1], c[2]]; /* in verticale nell'immagine: lo giro */
     var lng = (dist(c[0], c[1]) + dist(c[3], c[2])) / 2, sht = (dist(c[0], c[3]) + dist(c[1], c[2])) / 2;
     var quad = lng * sht * sc * sc, fill = e.size / Math.max(1, quad);
-    return { c: c, size: e.size, aspect: lng / Math.max(1, sht), fill: fill, th: e.th };
+    var ia = lng / Math.max(1, sht), ta = trueAspect(c, frame.width, frame.height);
+    return { c: c, size: e.size, aspect: ia, ta: ta, ra: ta || ia, fill: fill, th: e.th };
   });
-  lastShapes = shapes.map(function (q) { return { size: q.size, aspect: +q.aspect.toFixed(2), fill: +q.fill.toFixed(2), th: q.th, c: q.c.map(function (p) { return p.map(Math.round); }) }; });
+  lastShapes = shapes.map(function (q) { return { size: q.size, aspect: +q.aspect.toFixed(2), ta: q.ta && +q.ta.toFixed(2), fill: +q.fill.toFixed(2), th: q.th, c: q.c.map(function (p) { return p.map(Math.round); }) }; });
   shapes = shapes.filter(function (q) { return q.fill > 0.75 && q.fill < 1.3; }).sort(function (a, b) { return b.size - a.size; });
   /* la matrice è una striscia 297 x 74,25 (4:1): tra le zone bianche allungate preferisco quella più vicina a 4:1 */
   var longQ = shapes.filter(function (q) { return q.aspect > 2 && q.aspect < 10 && q.size > n * .004; });
@@ -892,7 +927,8 @@ function detectSheet(detW) {
   function inside(c, pt) { var xs = c.map(function (p) { return p[0]; }), ys = c.map(function (p) { return p[1]; }); return pt[0] > Math.min.apply(null, xs) && pt[0] < Math.max.apply(null, xs) && pt[1] > Math.min.apply(null, ys) && pt[1] < Math.max.apply(null, ys); }
   function ctr(c) { return [(c[0][0] + c[2][0]) / 2, (c[0][1] + c[2][1]) / 2]; }
   /* il foglio vero compare uguale con molte soglie diverse; una zona unita per sbaglio (foglio + striscia + tavolo) compare una volta sola */
-  var sheetC = shapes.filter(function (q) { return q.aspect > 1.15 && q.aspect < 1.8 && q.size > n * 0.04 && !longQ.some(function (L2) { return L2.size > q.size * .5 && inPoly(L2.c, ctr(q.c)[0], ctr(q.c)[1]); }); });
+  /* foglio: proporzioni vere (prospettiva tolta) vicine a 1,41; con la camera bassa un A4 lontano nell'immagine sembra 2:1 */
+  var sheetC = shapes.filter(function (q) { return (q.ta ? q.ta > 1.2 && q.ta < 1.75 && q.aspect < 3.2 : q.aspect > 1.15 && q.aspect < 1.8) && q.size > n * 0.04 && !longQ.some(function (L2) { return L2.ra > 2.6 && L2.size > q.size * .5 && inPoly(L2.c, ctr(q.c)[0], ctr(q.c)[1]); }); });
   var tolS = frame.width * .03;
   sheetC.forEach(function (q) { q.sup = sheetC.filter(function (o) { return o.c.every(function (p, i) { return Math.hypot(p[0] - q.c[i][0], p[1] - q.c[i][1]) < tolS; }); }).length; });
   sheetC.sort(function (a, b) { return b.sup - a.sup || b.size - a.size; });
@@ -1034,6 +1070,35 @@ function refineQuad1(c) {
   }
   return out;
 }
+/* proporzioni VERE di un rettangolo visto in prospettiva (Zhang e He, lavagne fotografate): con il punto principale al
+   centro dell'immagine ricavo la focale dai 4 angoli e poi il rapporto lato/lato del rettangolo reale.
+   Serve con la camera bassa: un A4 lontano sembra molto più schiacciato (2:1, 3:1) ma resta 1,41.
+   Restituisce null se la prospettiva è quasi nulla o i conti non tornano (allora vale quello che si vede). */
+function trueAspect(c, W, Hh) {
+  var u0 = W / 2, v0 = Hh / 2, m1 = [c[0][0], c[0][1], 1], m2 = [c[1][0], c[1][1], 1], m3 = [c[3][0], c[3][1], 1], m4 = [c[2][0], c[2][1], 1];
+  function cr(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function dt(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  var k2 = dt(cr(m1, m4), m3) / dt(cr(m2, m4), m3), k3 = dt(cr(m1, m4), m2) / dt(cr(m3, m4), m2);
+  var n2 = [k2 * m2[0] - m1[0], k2 * m2[1] - m1[1], k2 - 1], n3 = [k3 * m3[0] - m1[0], k3 * m3[1] - m1[1], k3 - 1];
+  if (!isFinite(k2) || !isFinite(k3) || Math.abs(n2[2] * n3[2]) < 1e-6) return null;
+  var f2 = -((n2[0] * n3[0] - (n2[0] * n3[2] + n2[2] * n3[0]) * u0 + n2[2] * n3[2] * u0 * u0) + (n2[1] * n3[1] - (n2[1] * n3[2] + n2[2] * n3[1]) * v0 + n2[2] * n3[2] * v0 * v0)) / (n2[2] * n3[2]);
+  if (!(f2 > W * W * .04 && f2 < W * W * 25)) return null; /* focale assurda: prospettiva troppo debole per misurarla */
+  function q(n) { var x = n[0] - u0 * n[2], y = n[1] - v0 * n[2]; return (x * x + y * y) / f2 + n[2] * n[2]; }
+  var r = Math.sqrt(q(n2) / q(n3)); return r < 1 ? 1 / r : r;
+}
+/* la camera può guardare dal lato opposto ai bambini (immagine girata di 180°): la matrice sta "sopra" il foglio
+   nel progetto, quindi se la trovo dall'altra parte giro il foglio. Si spegne se si preme "Ruota 180°" a mano. */
+var rotManual = false, orientSig = '';
+function autoOrient() {
+  if (rotManual || S.mode != 'sheet' || !strip || !strip.c || !sheetCorners || manualPts) return;
+  var sig = strip.c.map(function (p) { return p.map(Math.round).join(','); }).join(';') + '|' + sheetCorners.map(function (p) { return p.map(Math.round).join(','); }).join(';');
+  if (sig == orientSig) return; orientSig = sig;
+  var P = planeSize(toPlane(sheetCorners), strip.c), above = L.matrix.y < L.sheet.y;
+  if (above ? P.cy > 105 : P.cy < 105) {
+    rot180 = !rot180; setSheetH(sheetCorners); committed.forEach(function (c, i) { committed[i] = []; }); padState = {}; knobState = {}; ctlRef = {};
+    logEvent('camera dal lato della matrice: foglio girato di 180°'); toast('Camera dall\'altro lato: giro il foglio, la musica va da sinistra a destra per i bambini');
+  }
+}
 function orient(c) { return rot180 ? [c[2], c[3], c[0], c[1]] : c; }
 function setSheetH(c) {
   var S0 = L.sheet; sheetCorners = c;
@@ -1042,7 +1107,7 @@ function setSheetH(c) {
 }
 function findSheetOnly() { sheetLock = false; sheetCand = null; sheetCandN = 0; H = null; sheetCorners = null; lastDetect = 0; committed.forEach(function (c, i) { committed[i] = []; }); }
 function findStripOnly() { strip = null; MX = null; stripCand = null; stripCandN = 0; lastStripTry = 0; for (var i = 0; i < ND; i++) grid[i].fill(false); }
-function findSheet() { sheetLock = false; sheetCand = null; sheetCandN = 0; H = null; sheetCorners = null; strip = null; stripCand = null; stripCandN = 0; for (var i = 0; i < ND; i++) grid[i].fill(false); }
+function findSheet() { rotManual = false; orientSig = ''; sheetLock = false; sheetCand = null; sheetCandN = 0; H = null; sheetCorners = null; strip = null; stripCand = null; stripCandN = 0; for (var i = 0; i < ND; i++) grid[i].fill(false); }
 
 /* ---------------- matrice a simboli (striscia 4 x 16 con intestazione) ---------------- */
 /* La striscia viene raddrizzata in un'immagine SU x SV (lato lungo = tempo).
@@ -1624,6 +1689,7 @@ function readLoop() {
           if (stripMoveN >= 2) { stripMoveN = 0; setupStrip(refineQuad(stripFound)); logEvent('matrice spostata: riagganciata'); }
         }
       }
+      autoOrient();
       if (H) readSheet();
       if (strip) readStrip();
       if (H && S.camCtl && !manualPts) readControls(); /* striscia comandi sotto il foglio: la trovo con lo stesso piano dell'A4 */
@@ -2161,22 +2227,21 @@ function twStatic() {
   /* striscia comandi di cartone sotto il foglio: START · STOP, RESTART e SPEED */
   s += cardboard(P, 3, KRAFT2, true);
   var k = L.knobs.speed, pl = L.pads.play, rs = L.pads.restart;
+  /* pulsanti NERI con icone BIANCHE (come quelli veri): START · STOP = ▶❚❚, RESTART = freccia indietro */
   [[pl, 'START · STOP'], [rs, 'RESTART']].forEach(function (e) {
     var p = e[0], h = p.size / 2;
-    s += '<rect x="' + r2(p.x - h) + '" y="' + r2(p.y - h) + '" width="' + p.size + '" height="' + p.size + '" fill="none" stroke="#161616" stroke-width="2.6"/>';
-    s += txt(p.x, p.y + h - 4.5, e[1], 3.4, { c: 'rgba(40,28,14,.72)', w: 800, ls: .4 });
+    s += '<g filter="url(#twSh2)"><rect x="' + r2(p.x - h) + '" y="' + r2(p.y - h) + '" width="' + p.size + '" height="' + p.size + '" rx="1.2" fill="#121212"/></g>';
+    s += txt(p.x, P.y + P.h + 4.5, e[1], 2.7, { c: 'rgba(40,28,14,.72)', w: 800, ls: .4 });
   });
-  /* icone a matita, come sul cartone */
+  s += '<path d="M' + r2(pl.x - 11) + ' ' + r2(pl.y - 7) + 'l10 7l-10 7z" fill="#fff"/><rect x="' + r2(pl.x + 2) + '" y="' + r2(pl.y - 7) + '" width="3.4" height="14" fill="#fff"/><rect x="' + r2(pl.x + 7.6) + '" y="' + r2(pl.y - 7) + '" width="3.4" height="14" fill="#fff"/>';
+  s += '<path d="M' + r2(rs.x + 12) + ' ' + r2(rs.y) + 'H' + r2(rs.x - 8) + 'M' + r2(rs.x - 2) + ' ' + r2(rs.y - 7) + 'L' + r2(rs.x - 10) + ' ' + r2(rs.y) + 'L' + r2(rs.x - 2) + ' ' + r2(rs.y + 7) + '" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="miter"/>';
   var pc = 'rgba(60,45,30,.6)';
-  s += '<path d="M' + r2(pl.x - 9) + ' ' + r2(pl.y - 14) + 'h18l-9 14z" fill="none" stroke="' + pc + '" stroke-width=".7"/>' +
-    '<rect x="' + r2(pl.x - 12) + '" y="' + r2(pl.y + 3) + '" width="24" height="3.4" fill="none" stroke="' + pc + '" stroke-width=".6"/><rect x="' + r2(pl.x - 12) + '" y="' + r2(pl.y + 8) + '" width="24" height="3.4" fill="none" stroke="' + pc + '" stroke-width=".6"/>';
-  s += '<path d="M' + r2(rs.x + 9) + ' ' + r2(rs.y - 4) + 'a11 13 0 1 0 -2 8" fill="none" stroke="' + pc + '" stroke-width=".7"/><path d="M' + r2(rs.x + 5) + ' ' + r2(rs.y + 3) + 'l5 1.5l-1 -5.5z" fill="none" stroke="' + pc + '" stroke-width=".6"/>';
   /* SPEED: cerchio a matita con le tacche, il disco con il pallino è dinamico */
   s += '<circle cx="' + k.x + '" cy="' + k.y + '" r="' + (k.r + 2.5) + '" fill="none" stroke="' + pc + '" stroke-width=".6"/>';
   for (j = 0; j <= 18; j++) { var b = -135 + j * 15, q1 = BOARD.polar(k.x, k.y, k.r + 3.6, b), q2 = BOARD.polar(k.x, k.y, k.r + 5 + (j % 6 ? 0 : 1.6), b); s += '<line x1="' + r2(q1[0]) + '" y1="' + r2(q1[1]) + '" x2="' + r2(q2[0]) + '" y2="' + r2(q2[1]) + '" stroke="' + pc + '" stroke-width=".55" stroke-linecap="round"/>'; }
   var qL = BOARD.polar(k.x, k.y, k.r + 9.5, -135), qR = BOARD.polar(k.x, k.y, k.r + 9.5, 135);
   s += txt(qL[0] - 3, qL[1] + 1, 'lento', 2.6, { c: INKBR, w: 600 }) + txt(qR[0] + 3, qR[1] + 1, 'veloce', 2.6, { c: INKBR, w: 600 });
-  s += txt(k.x, P.y + 5.2, 'SPEED', 3.2, { c: 'rgba(40,28,14,.72)', w: 800, ls: .6 });
+  s += txt(k.x, P.y + P.h + 4.5, 'SPEED', 2.7, { c: 'rgba(40,28,14,.72)', w: 800, ls: .4 });
   return s;
 }
 /* note lette disegnate come pennarello sul foglio del gemello */
@@ -2216,8 +2281,8 @@ function twFlaps(st) {
 }
 function twKnob(angle) {
   var k = L.knobs.speed, p = BOARD.polar(k.x, k.y, k.dot, 0);
-  return '<g transform="rotate(' + r2(angle) + ' ' + k.x + ' ' + k.y + ')"><circle cx="' + k.x + '" cy="' + k.y + '" r="' + k.r + '" fill="' + PAPER + '" stroke="#bfb3a0" stroke-width=".5" filter="url(#twSh2)"/>' +
-    '<circle cx="' + r2(p[0]) + '" cy="' + r2(p[1]) + '" r="4.2" fill="#111"/></g>' +
+  return '<g transform="rotate(' + r2(angle) + ' ' + k.x + ' ' + k.y + ')"><circle cx="' + k.x + '" cy="' + k.y + '" r="' + k.r + '" fill="#121212" filter="url(#twSh2)"/>' +
+    '<line x1="' + k.x + '" y1="' + r2(k.y - k.r * .35) + '" x2="' + r2(p[0]) + '" y2="' + r2(p[1]) + '" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="' + r2(p[0]) + '" cy="' + r2(p[1]) + '" r="2" fill="#fff"/></g>' +
     '<circle cx="' + k.x + '" cy="' + k.y + '" r="2.4" fill="url(#twMetal)" stroke="#888" stroke-width=".3"/>';
 }
 function bpmToAngle(b) { return -135 + (b - L.speedRange[0]) / (L.speedRange[1] - L.speedRange[0]) * 270; }
@@ -2258,7 +2323,7 @@ function buildTwin() {
   twin.innerHTML = twDefs() + twStatic() + '<g id="twDyn"></g><g id="twHead" style="display:none"><rect id="twGlow" x="0" y="0" width="10" height="10" fill="url(#twLed)"/><rect id="twCore" x="0" y="0" width="1.4" height="10" fill="#ffc21a"/></g>' + twHits() + '<g id="twFinger" style="pointer-events:none"></g>';
   updateTwin.fl = null;
   twDyn = $('twDyn'); twHead = $('twHead'); twSig = '';
-  $('twinMeta').textContent = 'base ' + Math.round(L.board.w) + ' × ' + Math.round(L.board.h) + ' mm · matrice 297 × 74 sopra · A4 297 × 210 · comandi 297 × 75 sotto';
+  $('twinMeta').textContent = 'base ' + Math.round(L.board.w) + ' × ' + Math.round(L.board.h) + ' mm · dal lato camera: matrice 297 × 74 · A4 297 × 210 · pulsantiera';
   bindTwin();
 }
 function updateTwin() {
@@ -2431,7 +2496,7 @@ function renderUI() {
 }
 function setHand(h) {
   if (S.hand == h) return;
-  S.hand = h; L = LV2(h); padState = {}; knobState = {}; if (S.ctl) { S.ctl = null; toast('Comandi dall\'altro lato: se serve risegnali con "Segna comandi"'); } railState = {}; railRead = {}; MX = null;
+  S.hand = h; L = LV2(h); padState = {}; knobState = {}; ctlRef = {}; if (S.ctl) { S.ctl = null; toast('Comandi dall\'altro lato: se serve risegnali con "Segna comandi"'); } railState = {}; railRead = {}; MX = null;
   saveTeacher(); buildTwin(); renderUI();
   logEvent(h == 'right' ? 'base girata: destrimano, comandi a destra' : 'base girata: mancino, comandi a sinistra');
   if (source == 'image' && srcLabel.indexOf('demo') == 0) loadDemo();
@@ -2447,7 +2512,7 @@ function buildUI() {
   $('bFindSheet').onclick = function () { manualPts = null; findSheetOnly(); logEvent('cerco di nuovo solo il foglio A4'); };
   $('bFindStrip').onclick = function () { S.patOverride = false; findStripOnly(); logEvent('cerco di nuovo solo la matrice'); };
   $('bCorners').onclick = function () { manualPts = []; sheetLock = true; H = null; toast('Clicca i 4 angoli del foglio sull\'immagine della camera'); };
-  $('bRot').onclick = function () { rot180 = !rot180; if (sheetCorners) setSheetH(sheetCorners); };
+  $('bRot').onclick = function () { rotManual = true; rot180 = !rot180; if (sheetCorners) setSheetH(sheetCorners); };
   var ctlPick = null, CTL_KEYS = ['play', 'restart', 'speed'], CTL_NAMES = ['START · STOP', 'RESTART', 'SPEED (centro del disco)'];
   $('bCtl').onclick = function () {
     if (!H) { toast('Prima la camera deve trovare il foglio A4'); return; }
@@ -2460,7 +2525,7 @@ function buildUI() {
       var q = proj(Hi, (e.clientX - r.left - ox) / k, (e.clientY - r.top - oy) / k), n = Object.keys(ctlPick).length;
       ctlPick[CTL_KEYS[n]] = [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10];
       if (n + 1 < 3) { toast('Ora il centro di ' + CTL_NAMES[n + 1]); return; }
-      S.ctl = ctlPick; ctlPick = null; padState = {}; knobState = {}; saveTeacher(); renderUI();
+      S.ctl = ctlPick; ctlPick = null; padState = {}; knobState = {}; ctlRef = {}; saveTeacher(); renderUI();
       toast('Comandi segnati: ora la camera li guarda dove sono davvero'); logEvent('comandi segnati a mano sulla base'); return;
     }
     if (!manualPts) return;
@@ -2498,7 +2563,7 @@ function buildUI() {
   $('rZoom').oninput = function () { setZoom(this.value); };
   $('selCam').onchange = function () { userPickedCam = true; startCamera(this.value).then(function () { srcLabel = ''; hideStart(); }).catch(explainCameraError); };
   $('filePhoto').onchange = function () { if (this.files[0]) { initAudioSafe(); loadPhoto(this.files[0]); srcLabel = this.files[0].name; hideStart(); } };
-  $('bCal').onclick = function () { padState = {}; knobState = {}; railState = {}; toast('Pulsanti ricalibrati: tieni le mani lontane per un secondo'); };
+  $('bCal').onclick = function () { padState = {}; knobState = {}; ctlRef = {}; railState = {}; toast('Pulsanti ricalibrati: tieni le mani lontane per un secondo'); };
   $('bDemo').onclick = function () { initAudioSafe(); loadDemo(); hideStart(); };
   $('bCam').onclick = askCamera;
   $('goCam').onclick = askCamera;
@@ -2885,7 +2950,7 @@ function loadPattern(rows) {
   toast('Ritmo d\'esempio nella matrice · per tornare a quella letta dalla camera premi "Solo matrice"');
 }
 
-window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, get still() { return stillImage; }, proj: function (x, y) { return H && proj(H, x, y); }, get pads() { return padState; }, _dbg: function (f) { return f({ get stripCands() { return stripCands; }, planeSize: planeSize, toPlane: toPlane, get sheetCorners() { return sheetCorners; }, refineQuad1: refineQuad1, get refineDbg() { return refineDbg; }, lastShapes: lastShapes, detectSheet: detectSheet, tplScore: tplScore, tplRegister: tplRegister, mxNormalize: mxNormalize, lastTplTry: lastTplTry, sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV, midiOf: midiOf, contMidi: contMidi }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
+window.LETTORE = { S: S, committed: committed, grid: grid, get H() { return H; }, get markers() { return mkCount; }, get L() { return L; }, get rails() { return railRead; }, get strip() { return strip; }, get MX() { return MX; }, setFrame: function (im) { stillImage = im; }, get still() { return stillImage; }, proj: function (x, y) { return H && proj(H, x, y); }, get pads() { return padState; }, get ctlRef() { return ctlRef; }, _dbg: function (f) { return f({ get stripCands() { return stripCands; }, planeSize: planeSize, toPlane: toPlane, get sheetCorners() { return sheetCorners; }, refineQuad1: refineQuad1, get refineDbg() { return refineDbg; }, lastShapes: lastShapes, detectSheet: detectSheet, tplScore: tplScore, tplRegister: tplRegister, mxNormalize: mxNormalize, lastTplTry: lastTplTry, sampleStrip: sampleStrip, strip: strip, MX: MX, ink: mxInk, mask: mxMask, SU: SU, SV: SV, midiOf: midiOf, contMidi: contMidi }); }, loadDemo: loadDemo, setHand: setHand, allGlides: allGlides, hideStart: hideStart, get pads() { return padState; }, knobs: lastKnobAngles };
 })();
 </script>
 </body>
