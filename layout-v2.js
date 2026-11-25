@@ -58,7 +58,7 @@ function LAYOUT_V2(hand) {
       restart: { x: xRestart, y: padY, r: 20, size: PS, name: 'RESTART' }
     },
     knobs: { speed: { x: xSpeed, y: sy + 210 + 60, r: 18.5, dot: 13.9, name: 'SPEED' } },
-    speedRange: [50, 480], transposeRange: 6
+    speedRange: [60, 240], transposeRange: 6
   };
   /* copio da layout.js quello che non cambia */
   ['drums', 'instruments', 'scales'].forEach(function (k) { L[k] = LAYOUT[k]; });

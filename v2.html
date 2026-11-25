@@ -275,7 +275,7 @@ body{padding-bottom:44px}
       <button class="tbtn2" id="bArcTw" title="Fogli salvati: riascolta e scarica in MP3">Archivio <b id="arcN">0</b></button>
     </div>
     <div id="twinWrap"><svg id="twin" role="group" aria-label="Base in cartone interattiva"></svg></div>
-    <div class="twinfoot"><span class="meta" id="twinMeta"></span><span class="hint">Tocca START · STOP e RESTART, trascina il disco SPEED.</span></div>
+    <div class="twinfoot"><span class="meta" id="twinMeta"></span><span class="hint">PLAY / STOP e RESTART: tocca. TEMPO: lancetta a sinistra 0 % = 60 bpm, a destra 100 % = 240 bpm.</span></div>
   </section>
 </main>
 
@@ -301,7 +301,7 @@ body{padding-bottom:44px}
         </div>
         <div class="group" style="margin-top:12px">
           <span class="muted">lento</span>
-          <input type="range" id="rSpeed" min="50" max="480" step="1" value="90" aria-label="Velocità (SPEED)">
+          <input type="range" id="rSpeed" min="60" max="240" step="1" value="90" aria-label="Tempo (60–240 bpm)">
           <span class="muted">veloce</span>
           <span class="val" id="vSpeed">90</span><span class="muted">bpm</span>
         </div>
@@ -844,7 +844,8 @@ function readControls() {
   res = padCovered('play', pd.play.x, pd.play.y, pd.play.r); if (res && res.changed && res.on) { initAudioSafe(); logEvent('START · STOP premuto · dito sul cartone'); fingerOn('play'); togglePlay(); }
   res = padCovered('restart', pd.restart.x, pd.restart.y, pd.restart.r); if (res && res.changed && res.on) { initAudioSafe(); logEvent('RESTART premuto · dito sul cartone'); fingerOn('restart'); restart(); }
   var a = knobAngle(padPos('speed')), v; lastKnobAngles.speed = a;
-  if (a != null) { var t = (Math.max(-135, Math.min(135, a)) + 135) / 270; v = Math.round((L.speedRange[0] + t * (L.speedRange[1] - L.speedRange[0])) / 2) * 2; v = stableKnob('sp', v); if (v != null) { S.bpm = v; renderUI(); } }
+  /* lancetta verso il basso (oltre ±150°) = posizione non valida: non cambio niente. Tra ±90° e ±150° vale il fine corsa */
+  if (a != null && Math.abs(a) <= 150) { v = stableKnob('sp', angleToPct(a)); if (v != null) { var nb = pctToBpm(v); if (nb != S.bpm) { S.bpm = nb; logEvent('TEMPO ' + v + ' % · ' + nb + ' bpm · cartone'); renderUI(); } } }
 }
 
 /* ---------------- modalità solo foglio ---------------- */
@@ -2164,8 +2165,10 @@ function drawView() {
   if (S.mode == 'board') { var M = L.matrix, mw = M.w / 16, mh = M.h / 4; drawMatrixOverlay(mxH); }
   {
     if (S.camCtl && (S.mode == 'board' || padState.play)) {
-      Object.keys(L.pads).forEach(function (key) { var p = padPos(key), st = padState[key], h2 = (p.size || 2 * p.r) / 2; poly([[p.x - h2, p.y - h2], [p.x + h2, p.y - h2], [p.x + h2, p.y + h2], [p.x - h2, p.y + h2]], st && st.on ? '#ff5a1f' : 'rgba(61,220,132,.95)', st && st.on ? 'rgba(255,90,31,.35)' : null, lw); });
-      var k = padPos('speed'), a = lastKnobAngles.speed; circ(k.x, k.y, k.r, 'rgba(61,220,132,.95)', null, lw);
+      Object.keys(L.pads).forEach(function (key) { var p = padPos(key), st = padState[key], h2 = (p.size || 2 * p.r) / 2, ok = !!ctlRef[key] || S.mode == 'board', col = st && st.on ? '#ff5a1f' : ok ? 'rgba(61,220,132,.95)' : 'rgba(255,194,71,.95)'; poly([[p.x - h2, p.y - h2], [p.x + h2, p.y - h2], [p.x + h2, p.y + h2], [p.x - h2, p.y + h2]], col, st && st.on ? 'rgba(255,90,31,.35)' : null, lw);
+        label(p.x - h2, p.y + h2 + 6, (key == 'play' ? 'PLAY/STOP' : 'RESTART') + (st && st.on ? ' · DITO' : ok ? '' : ' ?'), col); });
+      var k = padPos('speed'), a = lastKnobAngles.speed, kok = a != null && Math.abs(a) <= 150; circ(k.x, k.y, k.r, kok ? 'rgba(61,220,132,.95)' : 'rgba(255,194,71,.95)', null, lw);
+      label(k.x - k.r, k.y + k.r + 6, kok ? 'TEMPO ' + angleToPct(a) + '% · ' + pctToBpm(angleToPct(a)) : 'TEMPO ?', kok ? '#3ddc84' : '#ffc247');
       if (a != null) { var p2 = BOARD.polar(k.x, k.y, k.r, a), c0 = proj(H, k.x, k.y), c1 = proj(H, p2[0], p2[1]); vctx.beginPath(); vctx.moveTo(c0[0], c0[1]); vctx.lineTo(c1[0], c1[1]); vctx.strokeStyle = '#ff5a1f'; vctx.lineWidth = lw * 2; vctx.stroke(); }
       L.muteC.forEach(function (m) { var v = railRead['c' + m.i]; circ(m.x, m.y, m.r + 2, v == null ? 'rgba(255,255,255,.5)' : v ? '#3ddc84' : '#ff6b5a', null, lw); });
       L.muteD.forEach(function (m) { var v = railRead['d' + m.i]; circ(m.x, m.y, m.r + 2, v == null ? 'rgba(255,255,255,.5)' : v ? '#3ddc84' : '#ff6b5a', null, lw); });
@@ -2208,8 +2211,8 @@ function twStatic() {
   s += '<g filter="url(#twSh)"><rect x="0" y="0" width="' + W + '" height="' + Hh + '" rx="5" fill="' + KRAFT + '"/></g>';
   s += '<rect x="0" y="0" width="' + W + '" height="' + Hh + '" rx="5" fill="' + KRAFT + '" filter="url(#twKraft)"/>';
   s += '<rect x="0" y="0" width="' + W + '" height="' + Hh + '" rx="5" fill="url(#twFlute)"/><rect x="0" y="0" width="' + W + '" height="' + Hh + '" rx="5" fill="none" stroke="' + EDGE + '" stroke-width="1"/>';
-  s += txt(W / 2, Hh - 26, 'LETTORE DI DISEGNI · v2', 6.4, { c: 'rgba(80,55,30,.75)', w: 700, ls: 1.6 });
-  s += txt(W / 2, Hh - 18, 'base ' + W + ' × ' + Hh + ' mm · ' + (L.hand == 'right' ? 'destrimano' : 'mancino'), 3.6, { c: 'rgba(80,55,30,.6)', w: 500, ls: .6 });
+  s += txt(W / 2, Hh - 6.5, 'LETTORE DI DISEGNI · v2', 4.4, { c: 'rgba(80,55,30,.75)', w: 700, ls: 1.6 });
+  if (0) s += txt(W / 2, Hh - 18, 'base ' + W + ' × ' + Hh + ' mm · ' + (L.hand == 'right' ? 'destrimano' : 'mancino'), 3.6, { c: 'rgba(80,55,30,.6)', w: 500, ls: .6 });
   /* marker su carta */
   if (S.mode == 'board') L.markers.forEach(function (m) { s += '<g filter="url(#twSh2)">' + BOARD.marker(m.id, m.x, m.y, m.size, 4) + '</g>'; }); /* la base vera non ha marker: solo nella modalità con marker */
   /* angoli neri: tengono fermi matrice e foglio (come sulla base vera) */
@@ -2228,20 +2231,22 @@ function twStatic() {
   s += cardboard(P, 3, KRAFT2, true);
   var k = L.knobs.speed, pl = L.pads.play, rs = L.pads.restart;
   /* pulsanti NERI con icone BIANCHE (come quelli veri): START · STOP = ▶❚❚, RESTART = freccia indietro */
-  [[pl, 'START · STOP'], [rs, 'RESTART']].forEach(function (e) {
+  [[pl, 'PLAY / STOP'], [rs, 'RESTART']].forEach(function (e) {
     var p = e[0], h = p.size / 2;
     s += '<g filter="url(#twSh2)"><rect x="' + r2(p.x - h) + '" y="' + r2(p.y - h) + '" width="' + p.size + '" height="' + p.size + '" rx="1.2" fill="#121212"/></g>';
-    s += txt(p.x, P.y + P.h + 4.5, e[1], 2.7, { c: 'rgba(40,28,14,.72)', w: 800, ls: .4 });
+    s += txt(p.x, P.y + P.h + 5, e[1], 3.6, { c: 'rgba(40,28,14,.72)', w: 800, ls: .4 });
   });
   s += '<path d="M' + r2(pl.x - 11) + ' ' + r2(pl.y - 7) + 'l10 7l-10 7z" fill="#fff"/><rect x="' + r2(pl.x + 2) + '" y="' + r2(pl.y - 7) + '" width="3.4" height="14" fill="#fff"/><rect x="' + r2(pl.x + 7.6) + '" y="' + r2(pl.y - 7) + '" width="3.4" height="14" fill="#fff"/>';
   s += '<path d="M' + r2(rs.x + 12) + ' ' + r2(rs.y) + 'H' + r2(rs.x - 8) + 'M' + r2(rs.x - 2) + ' ' + r2(rs.y - 7) + 'L' + r2(rs.x - 10) + ' ' + r2(rs.y) + 'L' + r2(rs.x - 2) + ' ' + r2(rs.y + 7) + '" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="miter"/>';
   var pc = 'rgba(60,45,30,.6)';
   /* SPEED: cerchio a matita con le tacche, il disco con il pallino è dinamico */
   s += '<circle cx="' + k.x + '" cy="' + k.y + '" r="' + (k.r + 2.5) + '" fill="none" stroke="' + pc + '" stroke-width=".6"/>';
-  for (j = 0; j <= 18; j++) { var b = -135 + j * 15, q1 = BOARD.polar(k.x, k.y, k.r + 3.6, b), q2 = BOARD.polar(k.x, k.y, k.r + 5 + (j % 6 ? 0 : 1.6), b); s += '<line x1="' + r2(q1[0]) + '" y1="' + r2(q1[1]) + '" x2="' + r2(q2[0]) + '" y2="' + r2(q2[1]) + '" stroke="' + pc + '" stroke-width=".55" stroke-linecap="round"/>'; }
-  var qL = BOARD.polar(k.x, k.y, k.r + 9.5, -135), qR = BOARD.polar(k.x, k.y, k.r + 9.5, 135);
-  s += txt(qL[0] - 3, qL[1] + 1, 'lento', 2.6, { c: INKBR, w: 600 }) + txt(qR[0] + 3, qR[1] + 1, 'veloce', 2.6, { c: INKBR, w: 600 });
-  s += txt(k.x, P.y + P.h + 4.5, 'SPEED', 2.7, { c: 'rgba(40,28,14,.72)', w: 800, ls: .4 });
+  for (j = 0; j <= 10; j++) { var b = -KNOB_A + j * 18, big = j % 5 == 0, q1 = BOARD.polar(k.x, k.y, k.r + 2.2, b), q2 = BOARD.polar(k.x, k.y, k.r + (big ? 6.2 : 4.2), b); s += '<line x1="' + r2(q1[0]) + '" y1="' + r2(q1[1]) + '" x2="' + r2(q2[0]) + '" y2="' + r2(q2[1]) + '" stroke="#1b1b1b" stroke-width="' + (big ? .8 : .45) + '" stroke-linecap="round"/>'; }
+  var qL = BOARD.polar(k.x, k.y, k.r + 7, -KNOB_A), qR = BOARD.polar(k.x, k.y, k.r + 7, KNOB_A), qT = BOARD.polar(k.x, k.y, k.r + 8.6, 0);
+  s += txt(qL[0] - 4.2, qL[1] - .6, '0%', 3, { c: '#1b1b1b', w: 800 }) + txt(qL[0] - 4.2, qL[1] + 3.2, '60', 2.5, { c: INKBR, w: 600 });
+  s += txt(qR[0] + 5, qR[1] - .6, '100%', 3, { c: '#1b1b1b', w: 800 }) + txt(qR[0] + 5, qR[1] + 3.2, '240', 2.5, { c: INKBR, w: 600 });
+  s += txt(qT[0], qT[1] + .8, '50%', 2.1, { c: INKBR, w: 700 });
+  s += txt(k.x, P.y + P.h + 5, 'TEMPO', 3.6, { c: 'rgba(40,28,14,.72)', w: 800, ls: .4 });
   return s;
 }
 /* note lette disegnate come pennarello sul foglio del gemello */
@@ -2280,12 +2285,18 @@ function twFlaps(st) {
   return s;
 }
 function twKnob(angle) {
-  var k = L.knobs.speed, p = BOARD.polar(k.x, k.y, k.dot, 0);
+  var k = L.knobs.speed, p = BOARD.polar(k.x, k.y, k.dot, 0), vx = L.hand == 'right' ? k.x - k.r - 32 : k.x + k.r + 32;
   return '<g transform="rotate(' + r2(angle) + ' ' + k.x + ' ' + k.y + ')"><circle cx="' + k.x + '" cy="' + k.y + '" r="' + k.r + '" fill="#121212" filter="url(#twSh2)"/>' +
     '<line x1="' + k.x + '" y1="' + r2(k.y - k.r * .35) + '" x2="' + r2(p[0]) + '" y2="' + r2(p[1]) + '" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="' + r2(p[0]) + '" cy="' + r2(p[1]) + '" r="2" fill="#fff"/></g>' +
+    txt(vx, k.y + 1, bpmToPct(S.bpm) + '%', 7, { c: '#141414', w: 800 }) + txt(vx, k.y + 7.4, S.bpm + ' bpm', 3.6, { c: INKBR, w: 600 }) +
     '<circle cx="' + k.x + '" cy="' + k.y + '" r="2.4" fill="url(#twMetal)" stroke="#888" stroke-width=".3"/>';
 }
-function bpmToAngle(b) { return -135 + (b - L.speedRange[0]) / (L.speedRange[1] - L.speedRange[0]) * 270; }
+/* TEMPO: lancetta tutta a SINISTRA = 0 % = 60 bpm, in ALTO = 50 % = 150 bpm, tutta a DESTRA = 100 % = 240 bpm (mezzo giro) */
+var KNOB_A = 90;
+function bpmToPct(b) { return Math.max(0, Math.min(100, Math.round((b - L.speedRange[0]) / (L.speedRange[1] - L.speedRange[0]) * 100))); }
+function pctToBpm(p) { return Math.round(L.speedRange[0] + Math.max(0, Math.min(100, p)) / 100 * (L.speedRange[1] - L.speedRange[0])); }
+function angleToPct(a) { return Math.round((Math.max(-KNOB_A, Math.min(KNOB_A, a)) + KNOB_A) / (2 * KNOB_A) * 100); }
+function bpmToAngle(b) { return -KNOB_A + Math.max(0, Math.min(1, (b - L.speedRange[0]) / (L.speedRange[1] - L.speedRange[0]))) * 2 * KNOB_A; }
 function twDynamic(st) { return '<g>' + (st.ink || '') + '</g><g>' + (st.tokens || '') + '</g>' + twFlaps(st) + twKnob(st.knob); }
 /* dito sopra un pulsante (dalla camera o dal clic sullo schermo): si vede il polpastrello che passa sopra */
 var fingerUntil = {};
@@ -2350,7 +2361,7 @@ function bindTwin() {
   L.muteC.forEach(function (m) { act('hC' + m.i, function () { setMute('c', m.i, !S.muteC[m.i], 'schermo'); }); });
   L.muteD.forEach(function (m) { act('hD' + m.i, function () { setMute('d', m.i, !S.muteD[m.i], 'schermo'); }); });
   var kn = $('hKnob'), drag = false, k = L.knobs.speed;
-  function knobTo(e) { var p = svgPt(e), a = Math.atan2(p.x - k.x, -(p.y - k.y)) * 180 / Math.PI; a = Math.max(-135, Math.min(135, a)); S.bpm = Math.round(L.speedRange[0] + (a + 135) / 270 * (L.speedRange[1] - L.speedRange[0])); renderUI(); }
+  function knobTo(e) { var p = svgPt(e), a = Math.atan2(p.x - k.x, -(p.y - k.y)) * 180 / Math.PI; a = Math.max(-KNOB_A, Math.min(KNOB_A, a)); S.bpm = Math.round(L.speedRange[0] + (a + KNOB_A) / (2 * KNOB_A) * (L.speedRange[1] - L.speedRange[0])); renderUI(); }
   kn.addEventListener('pointerdown', function (e) { drag = true; kn.setPointerCapture(e.pointerId); knobTo(e); e.preventDefault(); });
   kn.addEventListener('pointermove', function (e) { if (drag) knobTo(e); });
   kn.addEventListener('pointerup', function () { if (drag) logEvent('SPEED ' + S.bpm + ' bpm · schermo'); drag = false; });
@@ -2432,7 +2443,7 @@ function updateTele() {
   $('tMat').innerHTML = h; $('tMatN').textContent = act + ' colpi' + (MX ? ' · ' + MX.ms.toFixed(0) + ' ms' + (MX.hand ? ' · mano/ombra: caselle grigie ferme' : '') : '');
   $('tAudio').innerHTML = AC ? '<b class="' + (AC.state == 'running' ? 'ok' : 'warn') + '">' + AC.state + '</b> · ' + (AC.sampleRate / 1000).toFixed(1) + ' kHz<br>latenza ' + Math.round(((AC.baseLatency || 0) + (AC.outputLatency || 0)) * 1000) + ' ms · vol ' + Math.round(S.volume * 100) + '%' : '<span class="dim">si accende al primo comando</span>';
   var ca = $('chipAudio'); ca.className = 'chip ' + (AC && AC.state == 'running' ? 'ok' : 'warn'); ca.lastChild.textContent = AC && AC.state == 'running' ? 'audio attivo' : 'audio spento';
-  $('hud').innerHTML = source ? '<span>' + (S.mode == 'board' ? 'MARKER ' + mkCount + '/4' : 'A4 ' + (H ? '✓' : '?') + ' · MATRICE ' + (strip ? '✓' : '?')) + '</span><span>' + (source == 'cam' ? fps.toFixed(0) + ' FPS' : 'FERMO') + '</span>' + (S.playing && step ? '<span>PASSO ' + step + '/16</span>' : '') : '';
+  $('hud').innerHTML = source ? '<span>' + (S.mode == 'board' ? 'MARKER ' + mkCount + '/4' : 'A4 ' + (H ? '✓' : '?') + ' · MATRICE ' + (strip ? '✓' : '?') + (H && S.camCtl ? ' · COMANDI ' + Object.keys(ctlRef).length + '/3' : '')) + '</span><span>' + (source == 'cam' ? fps.toFixed(0) + ' FPS' : 'FERMO') + '</span>' + (S.playing && step ? '<span>PASSO ' + step + '/16</span>' : '') : '';
 }
 
 
@@ -2483,7 +2494,7 @@ function renderUI() {
   var p = $('bPlay'); p.textContent = S.playing ? '■ STOP' : '▶ START'; p.classList.toggle('on', S.playing); p.setAttribute('aria-pressed', S.playing);
   $('bMode').textContent = S.loop ? 'Giro (ripete)' : 'Una volta';
   $('bRec').classList.toggle('on', S.rec); $('bCtl').textContent = S.ctl ? 'Comandi segnati ✓' : 'Segna comandi'; $('bRecTw').classList.toggle('on', S.rec); if (!S.rec) $('recTwTxt').textContent = 'REGISTRA';
-  $('rSpeed').value = S.bpm; $('vSpeed').textContent = S.bpm;
+  $('rSpeed').value = S.bpm; $('vSpeed').textContent = S.bpm + ' · ' + bpmToPct(S.bpm) + '%';
   if (window.SOUND4) { SOUND4.syncTune(); if (renderUI.bpm != S.bpm + ':' + S.div) { renderUI.bpm = S.bpm + ':' + S.div; SOUND4.tempoChanged(); } }
   [].forEach.call(document.querySelectorAll('#readSeg [data-read]'), function (b) { var on = b.getAttribute('data-read') == S.read; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   if ($('bAuto')) { var au = S.trattoPitch == 'auto'; $('bAuto').classList.toggle('on', au); $('bAuto').setAttribute('aria-pressed', au); $('bAuto').textContent = 'Autotune ' + (au ? 'ON' : 'OFF'); }
@@ -2542,6 +2553,7 @@ function buildUI() {
   $('bRecTw').onclick = function () { initAudioSafe(); toggleRec(); };
   $('bArcTw').onclick = function () { if (buildDock.show) buildDock.show('arc'); };
   arcRender();
+  $('rSpeed').min = L.speedRange[0]; $('rSpeed').max = L.speedRange[1]; S.bpm = Math.max(L.speedRange[0], Math.min(L.speedRange[1], S.bpm));
   $('rSpeed').oninput = function () { S.bpm = +this.value; renderUI(); };
   $('rSpeed').onchange = function () { logEvent('SPEED ' + S.bpm + ' bpm · schermo'); };
   $('tDown').onclick = function () { S.transpose = Math.max(-L.transposeRange, S.transpose - 1); renderUI(); };
@@ -2934,7 +2946,7 @@ function twSono() {
   return s;
 }
 function setTuning(k, v) {
-  if (k == 'bpm') v = Math.max(50, Math.min(480, Math.round(v)));
+  if (k == 'bpm') v = Math.max(L.speedRange[0], Math.min(L.speedRange[1], Math.round(v)));
   if (S[k] === v) return;
   S[k] = v;
   if (k == 'read') { if (v != 'sonograf') stopSono(); fineHash = 0; finePrev = null; logEvent('lettura: ' + { note: 'note', tratto: 'tratto continuo', sonograf: 'Sonograf' }[v]); toast({ note: 'Lettura a note', tratto: 'Lettura Tratto: il suono segue il segno', sonograf: 'Lettura Sonograf: il nero suona' }[v]); }
