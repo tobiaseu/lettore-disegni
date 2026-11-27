@@ -275,7 +275,7 @@ body{padding-bottom:44px}
       <button class="tbtn2" id="bArcTw" title="Fogli salvati: riascolta e scarica in MP3">Archivio <b id="arcN">0</b></button>
     </div>
     <div id="twinWrap"><svg id="twin" role="group" aria-label="Base in cartone interattiva"></svg></div>
-    <div class="twinfoot"><span class="meta" id="twinMeta"></span><span class="hint">PLAY / STOP e RESTART: tocca. TEMPO: lancetta a sinistra 0 % = 60 bpm, a destra 100 % = 240 bpm. Il cartone dei comandi si può spostare: la camera lo segue.</span></div>
+    <div class="twinfoot"><span class="meta" id="twinMeta"></span><span class="hint">PLAY / STOP e RESTART: tocca. TEMPO: lancetta a sinistra 0 % = 60 bpm, a destra 100 % = 480 bpm. Il cartone dei comandi si può spostare: la camera lo segue.</span></div>
   </section>
 </main>
 
@@ -301,7 +301,7 @@ body{padding-bottom:44px}
         </div>
         <div class="group" style="margin-top:12px">
           <span class="muted">lento</span>
-          <input type="range" id="rSpeed" min="60" max="240" step="1" value="90" aria-label="Tempo (60–240 bpm)">
+          <input type="range" id="rSpeed" min="60" max="480" step="1" value="90" aria-label="Tempo (60–480 bpm)">
           <span class="muted">veloce</span>
           <span class="val" id="vSpeed">90</span><span class="muted">bpm</span>
         </div>
@@ -432,7 +432,7 @@ body{padding-bottom:44px}
 <script>
 (function () {
 'use strict';
-function LV2(h) { var l = LAYOUT_V2(h); l.scales = LAYOUT_V4(h).scales; return l; }
+function LV2(h) { var l = LAYOUT_V2(h); l.scales = LAYOUT_V4(h).scales; l.speedRange = [60, 480]; /* solo v2: tempo fino a 480 bpm */ return l; }
 var L = LV2('right'), COLS = 64, ROWS = 120, NI = L.instruments.length, ND = L.drums.length;
 var $ = function (id) { return document.getElementById(id); };
 
@@ -2471,7 +2471,7 @@ function twKnob(angle) {
     txt(vx, k.y + 1, bpmToPct(S.bpm) + '%', 7, { c: '#141414', w: 800 }) + txt(vx, k.y + 7.4, S.bpm + ' bpm', 3.6, { c: INKBR, w: 600 }) +
     '<circle cx="' + k.x + '" cy="' + k.y + '" r="2.4" fill="url(#twMetal)" stroke="#888" stroke-width=".3"/>';
 }
-/* TEMPO: lancetta tutta a SINISTRA = 0 % = 60 bpm, in ALTO = 50 % = 150 bpm, tutta a DESTRA = 100 % = 240 bpm (mezzo giro) */
+/* TEMPO: lancetta tutta a SINISTRA = 0 % = 60 bpm, in ALTO = 50 % = 270 bpm, tutta a DESTRA = 100 % = 480 bpm (mezzo giro) */
 var KNOB_A = 90;
 function bpmToPct(b) { return Math.max(0, Math.min(100, Math.round((b - L.speedRange[0]) / (L.speedRange[1] - L.speedRange[0]) * 100))); }
 function pctToBpm(p) { return Math.round(L.speedRange[0] + Math.max(0, Math.min(100, p)) / 100 * (L.speedRange[1] - L.speedRange[0])); }
